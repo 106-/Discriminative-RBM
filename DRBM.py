@@ -20,6 +20,11 @@ class DRBM:
         self.bias_c = sq_node * np.random.randn(self.num_hidden)
         self.bias_b = sq_node * np.random.randn(self.num_class)
 
+        self._old_diff_b = np.zeros(num_class)
+        self._old_diff_v = np.zeros((num_visible, num_hidden))
+        self._old_diff_c = np.zeros(num_hidden)
+        self._old_diff_w = np.zeros((num_hidden, num_class))
+
     @staticmethod
     def _sigmoid(x):
         # オーバーフロー対策
@@ -98,7 +103,7 @@ class DRBM:
         diff_v = np.dot( training_datas.T, (vsigmoid(A_matrix_tx) - sum_under_k).T)
         return diff_v
 
-    def train(self, training, test, learning_time, batch_size, learning_rate=[0.01, 0.01, 0.01, 0.01], test_interval=100):
+    def train(self, training, test, learning_time, batch_size, learning_rate=[0.1, 0.1, 0.1, 0.1], alpha=[0.1, 0.1, 0.1, 0.1], test_interval=100):
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
             raise TypeError
@@ -111,10 +116,15 @@ class DRBM:
             diff_c = self._differential_c(batch.data, batch.answer)
             diff_v = self._differential_v(batch.data, batch.answer)
 
-            self.bias_b += diff_b * learning_rate[0]
-            self.weight_w += diff_w * learning_rate[1]
-            self.bias_c += diff_c * learning_rate[2]
-            self.weight_v += diff_v * learning_rate[3]
+            self.bias_b += diff_b * learning_rate[0] + self._old_diff_b * alpha[0]
+            self.weight_w += diff_w * learning_rate[1] + self._old_diff_w * alpha[1]
+            self.bias_c += diff_c * learning_rate[2] + self._old_diff_c * alpha[2]
+            self.weight_v += diff_v * learning_rate[3] + self._old_diff_v * alpha[3]
+
+            self._old_diff_b = diff_b
+            self._old_diff_w = diff_w
+            self._old_diff_c = diff_c
+            self._old_diff_v = diff_v
             
             logging.info("️training is processing. {} / {}".format(lt+1, learning_time))
             if lt % test_interval == 0:
@@ -125,8 +135,8 @@ class DRBM:
         return np.argmax(probs)
     
     def test_error(self, test):
-        classified_data = [self.one_of_k(self.classify(d)) for d in test.data]
-        correct = np.sum( np.dot(test.answer, classified_data.T) )
+        classified_data = np.array([self.one_of_k(self.classify(d)) for d in test.data[0:100]])
+        correct = np.sum( np.dot(test.answer[0:100], classified_data.T) )
         logging.info("️correct rate: {}".format(correct / float(len(test.data))))
 
     def save(self, filename):
