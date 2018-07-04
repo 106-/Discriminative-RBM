@@ -7,7 +7,7 @@ import numpy as np
 import logging
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
-np.seterr(all="raise")
+np.seterr(over="raise", invalid="raise")
 
 class LearningData:
     def __init__(self, data, answer):
@@ -50,8 +50,7 @@ def main():
     hidden_unit_num = 500
     class_num = 10
 
-    drbm = DRBM.load_from_json("50_of_5000.json")
-    # drbm = DRBM(vector_size, hidden_unit_num, class_num)
+    drbm = DRBM(vector_size, hidden_unit_num, class_num)
 
     # logging.info("creating dummy data.")
     # train = dummy_data(100, vector_size, class_num)
@@ -66,7 +65,7 @@ def main():
     logging.info("train started.")
     start_time = time.time()
 
-    drbm.train(train, test, 5000, 100)
+    drbm.train(train, test, 5000, 100, 8)
     
     end_time = time.time()
     logging.info("☑ train complete. time: {} sec".format(end_time-start_time))

@@ -7,8 +7,7 @@ import numpy as np
 import json
 import logging
 import datetime
-
-np.seterr(all="raise")
+from multiprocessing import Pool
 
 class DRBM:
 
@@ -79,44 +78,44 @@ class DRBM:
         else:
             return probs[k]
 
-    def _differential_b(self, training_datas, training_answers):
-        probs_matrix = np.array([self.probability(x) for x in training_datas])
-        diff_b = np.sum(training_answers - probs_matrix, axis=0) / len(training_datas)
+    def _differential_b(self, training):
+        probs_matrix = np.array([self.probability(x) for x in training.data])
+        diff_b = np.sum(training.answer - probs_matrix, axis=0) / len(training.data)
         return diff_b
     
-    def _differential_w(self, training_datas, training_answers):
+    def _differential_w(self, training):
         vsigmoid = np.vectorize(self._sigmoid)
 
-        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training_datas] for m in range(self.num_hidden)])
-        probs_matrix = np.array([self.probability(x) for x in training_datas])
+        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
+        probs_matrix = np.array([self.probability(x) for x in training.data])
 
-        A_mul_difftp = vsigmoid(A_matrix) * (training_answers - probs_matrix)
-        diff_w = np.sum(A_mul_difftp, axis=1) / len(training_datas)
+        A_mul_difftp = vsigmoid(A_matrix) * (training.answer - probs_matrix)
+        diff_w = np.sum(A_mul_difftp, axis=1) / len(training.data)
         return diff_w
     
-    def _differential_c(self, training_datas, training_answers):
+    def _differential_c(self, training):
         vsigmoid = np.vectorize(self._sigmoid)
 
-        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training_datas] for m in range(self.num_hidden)])
-        probs_matrix = np.array([self.probability(x) for x in training_datas])
+        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
+        probs_matrix = np.array([self.probability(x) for x in training.data])
         sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
 
-        A_matrix_tx = np.array([[self._calc_A(m, training_datas[u], training_answers[u]) for u in range(len(training_datas))] for m in range(self.num_hidden)])
-        diff_c = np.sum( vsigmoid(A_matrix_tx) - sum_under_k, axis=1 ) / len(training_datas)
+        A_matrix_tx = np.array([[self._calc_A(m, training.data[u], training.answer[u]) for u in range(len(training.data))] for m in range(self.num_hidden)])
+        diff_c = np.sum( vsigmoid(A_matrix_tx) - sum_under_k, axis=1 ) / len(training.data)
         return diff_c
     
-    def _differential_v(self, training_datas, training_answers):
+    def _differential_v(self, training):
         vsigmoid = np.vectorize(self._sigmoid)
 
-        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training_datas] for m in range(self.num_hidden)])
-        probs_matrix = np.array([self.probability(x) for x in training_datas])
+        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
+        probs_matrix = np.array([self.probability(x) for x in training.data])
         sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
 
-        A_matrix_tx = np.array([[self._calc_A(m, training_datas[u], training_answers[u]) for u in range(len(training_datas))] for m in range(self.num_hidden)])
-        diff_v = np.dot( training_datas.T, (vsigmoid(A_matrix_tx) - sum_under_k).T) / len(training_datas)
+        A_matrix_tx = np.array([[self._calc_A(m, training.data[u], training.answer[u]) for u in range(len(training.data))] for m in range(self.num_hidden)])
+        diff_v = np.dot( training.data.T, (vsigmoid(A_matrix_tx) - sum_under_k).T) / len(training.data)
         return diff_v
 
-    def train(self, training, test, learning_time, batch_size, learning_rate=[0.1, 0.1, 0.1, 0.1], alpha=[0.1, 0.1, 0.1, 0.1], test_interval=100, dump_interval=10):
+    def train(self, training, test, learning_time, batch_size, test_num_process, learning_rate=[0.1, 0.1, 0.1, 0.1], alpha=[0.1, 0.1, 0.1, 0.1], test_interval=100):
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
             raise TypeError
@@ -131,10 +130,10 @@ class DRBM:
             try:
                 batch = training.minibatch(batch_size)
 
-                diff_b = self._differential_b(batch.data, batch.answer)
-                diff_w = self._differential_w(batch.data, batch.answer)
-                diff_c = self._differential_c(batch.data, batch.answer)
-                diff_v = self._differential_v(batch.data, batch.answer)
+                diff_b = self._differential_b(batch)
+                diff_w = self._differential_w(batch)
+                diff_c = self._differential_c(batch)
+                diff_v = self._differential_v(batch)
 
                 self.bias_b += diff_b * learning_rate[0] + self._old_diff_b * alpha[0]
                 self.weight_w += diff_w * learning_rate[1] + self._old_diff_w * alpha[1]
@@ -146,11 +145,10 @@ class DRBM:
                 self._old_diff_c = diff_c
                 self._old_diff_v = diff_v
 
-                #if lt % test_interval == 0:
-                #     self.test_error(test)
-                if lt % dump_interval == 0:
-                    self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
-                    logging.info("parameters are dumpd.")
+                if lt % test_interval == 0:
+                    self.test_error(test, test_num_process)
+                #    self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
+                #    logging.info("parameters are dumpd.")
 
                 logging.info("️training is processing. complete : {} / {}".format(lt+1, learning_time))
 
@@ -178,10 +176,22 @@ class DRBM:
         probs = self.probability(input_data)
         return np.argmax(probs)
     
-    def test_error(self, test):
-        classified_data = np.array([self.one_of_k(self.classify(d)) for d in test.data])
-        correct = np.sum( np.dot(test.answer, classified_data.T) )
-        logging.info("️correct rate: {}".format(correct / float(len(test.data))))
+    def test_error(self, test, num_process):
+        correct = 0
+        logging.info("correct rate caluculating.")
+        splitted_datas = np.array_split(test.data, num_process)
+        splitted_answers = np.array_split(test.answer, num_process)
+        with Pool(processes=num_process) as pool:
+            correct = np.sum(pool.map(self._count_correct, list(zip(splitted_datas, splitted_answers))))
+        
+        correct_rate = correct / float(len(test.data))
+        logging.info("️correct rate: {} ({} / {})".format( correct_rate, correct, len(test.data) ))
+        exit()
+
+    def _count_correct(self, args):
+        classified_data = np.array([self.one_of_k(self.classify(d)) for d in args[0]])
+        correct = int(np.sum( args[1] * classified_data ))
+        return correct
 
     def save(self, filename, training_progress=None):
         params = {
