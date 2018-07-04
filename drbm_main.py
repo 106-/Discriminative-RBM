@@ -50,7 +50,8 @@ def main():
     hidden_unit_num = 500
     class_num = 10
 
-    drbm = DRBM(vector_size, hidden_unit_num, class_num)
+    drbm = DRBM.load_from_json("50_of_5000.json")
+    # drbm = DRBM(vector_size, hidden_unit_num, class_num)
 
     # logging.info("creating dummy data.")
     # train = dummy_data(100, vector_size, class_num)

@@ -6,6 +6,9 @@ import random
 import numpy as np
 import json
 import logging
+import datetime
+
+np.seterr(all="raise")
 
 class DRBM:
 
@@ -25,20 +28,30 @@ class DRBM:
         self._old_diff_c = np.zeros(num_hidden)
         self._old_diff_w = np.zeros((num_hidden, num_class))
 
+        self.resume = None
+
     @staticmethod
     def _sigmoid(x):
-        # オーバーフロー対策
-        if -x > 709:
-            return 1.2167807506234229e-308
+        if -x > 708:
+            return 0.0
+        elif x > 708:
+            return 1.0
         return 1/(1+np.exp(-x))
 
     @staticmethod
-    def _exp(x):
-        if x>0:
+    def _log1p_exp(x):
+        if x > 708:
+            return x
+        if 708 >= x > 0:
             return x + np.log1p( np.exp(-x) )
-        else:
+        elif 0 >= x > -708:
             return np.log1p( np.exp(x) )
-
+        elif -708 >= x:
+            return 0.0
+        else:
+            logging.debug(x)
+            raise ValueError
+    
     # one-of-k表現のベクトルを生成
     def one_of_k(self, number):
         # "One of K" -> "ok"
@@ -48,15 +61,15 @@ class DRBM:
 
     # 31PにあるA_jを計算
     def _calc_A(self, j, input_vector, one_of_k):
-        return self.bias_c[j] * np.dot(self.weight_w[j], one_of_k) * np.dot(self.weight_v[:,j], input_vector)
+        return self.bias_c[j] + np.dot(self.weight_w[j], one_of_k) + np.dot(self.weight_v[:,j], input_vector)
 
     def probability(self, input_vector, k=None):
-        vexp = np.vectorize(self._exp)
+        vlog1p_exp = np.vectorize(self._log1p_exp)
         A_matrix = np.array([[self._calc_A(m, input_vector, self.one_of_k(k)) for m in range(self.num_hidden)] for k in range(self.num_class)])
-        log_a = np.log( np.ones((self.num_class, self.num_hidden)) + vexp(-A_matrix) )
-        sum_under_j = np.sum( A_matrix + log_a , axis=1)
+        energies = self.bias_b + np.sum( vlog1p_exp(A_matrix) , axis=1)
 
-        energies = vexp( self.bias_b + sum_under_j )
+        energy_max = np.max(energies)
+        energies = np.exp(energies - energy_max)
         # nc -> Normalize Constant
         nc = np.sum(energies)
         probs = energies / nc
@@ -86,7 +99,7 @@ class DRBM:
 
         A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training_datas] for m in range(self.num_hidden)])
         probs_matrix = np.array([self.probability(x) for x in training_datas])
-        sum_under_k = np.sum(A_matrix * probs_matrix, axis=2)
+        sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
 
         A_matrix_tx = np.array([[self._calc_A(m, training_datas[u], training_answers[u]) for u in range(len(training_datas))] for m in range(self.num_hidden)])
         diff_c = np.sum( vsigmoid(A_matrix_tx) - sum_under_k, axis=1 ) / len(training_datas)
@@ -97,50 +110,82 @@ class DRBM:
 
         A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training_datas] for m in range(self.num_hidden)])
         probs_matrix = np.array([self.probability(x) for x in training_datas])
-        sum_under_k = np.sum(A_matrix * probs_matrix, axis=2)
+        sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
 
         A_matrix_tx = np.array([[self._calc_A(m, training_datas[u], training_answers[u]) for u in range(len(training_datas))] for m in range(self.num_hidden)])
-        diff_v = np.dot( training_datas.T, (vsigmoid(A_matrix_tx) - sum_under_k).T)
+        diff_v = np.dot( training_datas.T, (vsigmoid(A_matrix_tx) - sum_under_k).T) / len(training_datas)
         return diff_v
 
-    def train(self, training, test, learning_time, batch_size, learning_rate=[0.1, 0.1, 0.1, 0.1], alpha=[0.1, 0.1, 0.1, 0.1], test_interval=100):
+    def train(self, training, test, learning_time, batch_size, learning_rate=[0.1, 0.1, 0.1, 0.1], alpha=[0.1, 0.1, 0.1, 0.1], test_interval=100, dump_interval=10):
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
             raise TypeError
         
-        for lt in range(learning_time):
-            batch = training.minibatch(batch_size)
+        resume_time = 0
 
-            diff_b = self._differential_b(batch.data, batch.answer)
-            diff_w = self._differential_w(batch.data, batch.answer)
-            diff_c = self._differential_c(batch.data, batch.answer)
-            diff_v = self._differential_v(batch.data, batch.answer)
+        if not self.resume == None:
+            resume_time = self.resume[0]
+            learning_time = self.resume[1]
 
-            self.bias_b += diff_b * learning_rate[0] + self._old_diff_b * alpha[0]
-            self.weight_w += diff_w * learning_rate[1] + self._old_diff_w * alpha[1]
-            self.bias_c += diff_c * learning_rate[2] + self._old_diff_c * alpha[2]
-            self.weight_v += diff_v * learning_rate[3] + self._old_diff_v * alpha[3]
+        for lt in range(resume_time, learning_time):
+            try:
+                batch = training.minibatch(batch_size)
 
-            self._old_diff_b = diff_b
-            self._old_diff_w = diff_w
-            self._old_diff_c = diff_c
-            self._old_diff_v = diff_v
-            
-            logging.info("️training is processing. {} / {}".format(lt+1, learning_time))
-            if lt % test_interval == 0:
-                self.test_error(test)
+                diff_b = self._differential_b(batch.data, batch.answer)
+                diff_w = self._differential_w(batch.data, batch.answer)
+                diff_c = self._differential_c(batch.data, batch.answer)
+                diff_v = self._differential_v(batch.data, batch.answer)
+
+                self.bias_b += diff_b * learning_rate[0] + self._old_diff_b * alpha[0]
+                self.weight_w += diff_w * learning_rate[1] + self._old_diff_w * alpha[1]
+                self.bias_c += diff_c * learning_rate[2] + self._old_diff_c * alpha[2]
+                self.weight_v += diff_v * learning_rate[3] + self._old_diff_v * alpha[3]
+
+                self._old_diff_b = diff_b
+                self._old_diff_w = diff_w
+                self._old_diff_c = diff_c
+                self._old_diff_v = diff_v
+
+                #if lt % test_interval == 0:
+                #     self.test_error(test)
+                if lt % dump_interval == 0:
+                    self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
+                    logging.info("parameters are dumpd.")
+
+                logging.info("️training is processing. complete : {} / {}".format(lt+1, learning_time))
+
+            except ValueError as e:
+                logging.error(e)
+                self.save("error.json")
+                logging.error("error parameter saved.")
+                exit()
+
+            except KeyboardInterrupt as e:
+                logging.info("train interrupted.")
+
+                now = datetime.datetime.now()
+                filename = now.strftime("%Y-%m-%d_%H-%M-%S.json")
+                self.save(filename, [lt, learning_time])
+
+                logging.info("parameters are dumped to %s"%filename)
+                input_data = input('continue? (type "Y" to continue) : ')
+                if input_data.upper() == "Y":
+                    continue
+                else:
+                    exit()
     
     def classify(self, input_data):
         probs = self.probability(input_data)
         return np.argmax(probs)
     
     def test_error(self, test):
-        classified_data = np.array([self.one_of_k(self.classify(d)) for d in test.data[0:100]])
-        correct = np.sum( np.dot(test.answer[0:100], classified_data.T) )
+        classified_data = np.array([self.one_of_k(self.classify(d)) for d in test.data])
+        correct = np.sum( np.dot(test.answer, classified_data.T) )
         logging.info("️correct rate: {}".format(correct / float(len(test.data))))
 
-    def save(self, filename):
+    def save(self, filename, training_progress=None):
         params = {
+            "training_progress":training_progress,
             "num_class":self.num_class,
             "num_hidden":self.num_hidden,
             "num_visible":self.num_visible,
@@ -149,6 +194,8 @@ class DRBM:
             "weight_w":self.weight_w.tolist(),
             "weight_v":self.weight_v.tolist(),
         }
+        if not training_progress == None:
+            params["training_progress"] = training_progress
         json.dump(params, open(filename, "w+"))
     
     @staticmethod
@@ -159,6 +206,7 @@ class DRBM:
         drbm.bias_c = np.array(params["bias_c"])
         drbm.weight_w = np.array(params["weight_w"])
         drbm.weight_v = np.array(params["weight_v"])
+        drbm.resume = params["training_progress"]
         return drbm
 
 def main():
