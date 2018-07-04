@@ -8,6 +8,7 @@ import json
 import logging
 import datetime
 from multiprocessing import Pool
+import multiprocessing as mp
 
 class DRBM:
 
@@ -78,12 +79,12 @@ class DRBM:
         else:
             return probs[k]
 
-    def _differential_b(self, training):
+    def _differential_b(self, q, training):
         probs_matrix = np.array([self.probability(x) for x in training.data])
         diff_b = np.sum(training.answer - probs_matrix, axis=0) / len(training.data)
-        return diff_b
+        q.put(diff_b)
     
-    def _differential_w(self, training):
+    def _differential_w(self, q, training):
         vsigmoid = np.vectorize(self._sigmoid)
 
         A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
@@ -91,9 +92,9 @@ class DRBM:
 
         A_mul_difftp = vsigmoid(A_matrix) * (training.answer - probs_matrix)
         diff_w = np.sum(A_mul_difftp, axis=1) / len(training.data)
-        return diff_w
+        q.put(diff_w)
     
-    def _differential_c(self, training):
+    def _differential_c(self, q, training):
         vsigmoid = np.vectorize(self._sigmoid)
 
         A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
@@ -102,9 +103,9 @@ class DRBM:
 
         A_matrix_tx = np.array([[self._calc_A(m, training.data[u], training.answer[u]) for u in range(len(training.data))] for m in range(self.num_hidden)])
         diff_c = np.sum( vsigmoid(A_matrix_tx) - sum_under_k, axis=1 ) / len(training.data)
-        return diff_c
+        q.put(diff_c)
     
-    def _differential_v(self, training):
+    def _differential_v(self, q, training):
         vsigmoid = np.vectorize(self._sigmoid)
 
         A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
@@ -113,7 +114,7 @@ class DRBM:
 
         A_matrix_tx = np.array([[self._calc_A(m, training.data[u], training.answer[u]) for u in range(len(training.data))] for m in range(self.num_hidden)])
         diff_v = np.dot( training.data.T, (vsigmoid(A_matrix_tx) - sum_under_k).T) / len(training.data)
-        return diff_v
+        q.put(diff_v)
 
     def train(self, training, test, learning_time, batch_size, test_num_process, learning_rate=[0.1, 0.1, 0.1, 0.1], alpha=[0.1, 0.1, 0.1, 0.1], test_interval=100):
         if not (self.num_visible == len(training.data[0])):
@@ -130,10 +131,21 @@ class DRBM:
             try:
                 batch = training.minibatch(batch_size)
 
-                diff_b = self._differential_b(batch)
-                diff_w = self._differential_w(batch)
-                diff_c = self._differential_c(batch)
-                diff_v = self._differential_v(batch)
+                q = [mp.Queue() for i in range(4)]
+                processes = [
+                    mp.Process(target=self._differential_b, args=(q[0],batch)),
+                    mp.Process(target=self._differential_w, args=(q[1],batch)),
+                    mp.Process(target=self._differential_c, args=(q[2],batch)),
+                    mp.Process(target=self._differential_v, args=(q[3],batch)),
+                ]
+                for p in processes:
+                    p.start()
+                diff_b = q[0].get()
+                diff_w = q[1].get()
+                diff_c = q[2].get()
+                diff_v = q[3].get()
+                for p in processes:
+                    p.join()
 
                 self.bias_b += diff_b * learning_rate[0] + self._old_diff_b * alpha[0]
                 self.weight_w += diff_w * learning_rate[1] + self._old_diff_w * alpha[1]
@@ -147,8 +159,8 @@ class DRBM:
 
                 if lt % test_interval == 0:
                     self.test_error(test, test_num_process)
-                #    self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
-                #    logging.info("parameters are dumpd.")
+                    self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
+                    logging.info("parameters are dumpd.")
 
                 logging.info("️training is processing. complete : {} / {}".format(lt+1, learning_time))
 
@@ -186,7 +198,6 @@ class DRBM:
         
         correct_rate = correct / float(len(test.data))
         logging.info("️correct rate: {} ({} / {})".format( correct_rate, correct, len(test.data) ))
-        exit()
 
     def _count_correct(self, args):
         classified_data = np.array([self.one_of_k(self.classify(d)) for d in args[0]])
