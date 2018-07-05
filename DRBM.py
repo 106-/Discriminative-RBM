@@ -116,7 +116,7 @@ class DRBM:
         diff_v = np.dot( training.data.T, (vsigmoid(A_matrix_tx) - sum_under_k).T) / len(training.data)
         q.put(diff_v)
 
-    def train(self, training, test, learning_time, batch_size, test_num_process, learning_rate=[0.1, 0.1, 0.1, 0.1], alpha=[0.1, 0.1, 0.1, 0.1], test_interval=100):
+    def train(self, training, test, learning_time, batch_size, test_num_process, learning_rate=[0.01, 0.01, 0.1, 0.1], alpha=[0.9, 0.9, 0.9, 0.9], test_interval=100):
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
             raise TypeError

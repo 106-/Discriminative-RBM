@@ -29,7 +29,7 @@ class MNIST(LearningData):
             for line in f:
                 sp_line = line.split(",")
                 self.answer.append(one_of_k(num_class, int(sp_line[0])))
-                self.data.append(list(map(lambda x: int(x), sp_line[1:])))
+                self.data.append(list(map(lambda x: float(x)/255, sp_line[1:])))
         self.answer = np.array(self.answer)
         self.data = np.array(self.data)
     
@@ -47,7 +47,7 @@ def one_of_k(num_class, number):
 
 def main():
     vector_size = 784
-    hidden_unit_num = 500
+    hidden_unit_num = 200
     class_num = 10
 
     drbm = DRBM(vector_size, hidden_unit_num, class_num)
