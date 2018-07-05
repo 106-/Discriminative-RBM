@@ -9,6 +9,7 @@ import logging
 import datetime
 from multiprocessing import Pool
 import multiprocessing as mp
+import numba
 
 class DRBM:
 
@@ -63,9 +64,24 @@ class DRBM:
     def _calc_A(self, j, input_vector, one_of_k):
         return self.bias_c[j] + np.dot(self.weight_w[j], one_of_k) + np.dot(self.weight_v[:,j], input_vector)
 
+    @numba.jit
+    def _get_A_matrix(self, input_vector):
+        A_matrix = np.zeros((self.num_class, self.num_hidden))
+        for k in range(self.num_class):
+            for j in range(self.num_hidden):
+                A_matrix[k][j] = self._calc_A(j, input_vector, self.one_of_k(k))
+        return A_matrix
+    
+    @numba.jit
+    def _get_probs_matrix(self, input_vectors):
+        probs_matrix = np.zeros((len(input_vectors), self.num_class))
+        for p in range(len(input_vectors)):
+            probs_matrix[p] = self.probability(input_vectors[p])
+        return probs_matrix
+    
     def probability(self, input_vector, k=None):
         vlog1p_exp = np.vectorize(self._log1p_exp)
-        A_matrix = np.array([[self._calc_A(m, input_vector, self.one_of_k(k)) for m in range(self.num_hidden)] for k in range(self.num_class)])
+        A_matrix = self._get_A_matrix(input_vector)
         energies = self.bias_b + np.sum( vlog1p_exp(A_matrix) , axis=1)
 
         energy_max = np.max(energies)
@@ -80,7 +96,8 @@ class DRBM:
             return probs[k]
 
     def _differential_b(self, q, training):
-        probs_matrix = np.array([self.probability(x) for x in training.data])
+        #probs_matrix = np.array([self.probability(x) for x in training.data])
+        probs_matrix = self._get_probs_matrix(training.data)
         diff_b = np.sum(training.answer - probs_matrix, axis=0) / len(training.data)
         q.put(diff_b)
     
@@ -88,7 +105,8 @@ class DRBM:
         vsigmoid = np.vectorize(self._sigmoid)
 
         A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
-        probs_matrix = np.array([self.probability(x) for x in training.data])
+        #probs_matrix = np.array([self.probability(x) for x in training.data])
+        probs_matrix = self._get_probs_matrix(training.data)
 
         A_mul_difftp = vsigmoid(A_matrix) * (training.answer - probs_matrix)
         diff_w = np.sum(A_mul_difftp, axis=1) / len(training.data)
@@ -98,7 +116,8 @@ class DRBM:
         vsigmoid = np.vectorize(self._sigmoid)
 
         A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
-        probs_matrix = np.array([self.probability(x) for x in training.data])
+        #probs_matrix = np.array([self.probability(x) for x in training.data])
+        probs_matrix = self._get_probs_matrix(training.data)
         sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
 
         A_matrix_tx = np.array([[self._calc_A(m, training.data[u], training.answer[u]) for u in range(len(training.data))] for m in range(self.num_hidden)])
@@ -109,7 +128,8 @@ class DRBM:
         vsigmoid = np.vectorize(self._sigmoid)
 
         A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
-        probs_matrix = np.array([self.probability(x) for x in training.data])
+        #probs_matrix = np.array([self.probability(x) for x in training.data])
+        probs_matrix = self._get_probs_matrix(training.data)
         sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
 
         A_matrix_tx = np.array([[self._calc_A(m, training.data[u], training.answer[u]) for u in range(len(training.data))] for m in range(self.num_hidden)])
@@ -199,8 +219,11 @@ class DRBM:
         correct_rate = correct / float(len(test.data))
         logging.info("️correct rate: {} ({} / {})".format( correct_rate, correct, len(test.data) ))
 
+    @numba.jit
     def _count_correct(self, args):
-        classified_data = np.array([self.one_of_k(self.classify(d)) for d in args[0]])
+        classified_data = np.zeros((len(args[0]), self.num_class))
+        for u in range(len(args[0])):
+            classified_data[u] = self.one_of_k(self.classify(args[0][u]))
         correct = int(np.sum( args[1] * classified_data ))
         return correct
 
