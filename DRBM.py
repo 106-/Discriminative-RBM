@@ -95,8 +95,16 @@ class DRBM:
         else:
             return probs[k]
 
+    @numba.jit
+    def _get_A_matrix_diff(self, training):
+        A_matrix = np.zeros((self.num_hidden, len(training.data), self.num_class))
+        for j in range(self.num_hidden):
+            for x in range(len(training.data)):
+                for k in range(self.num_class):
+                    A_matrix[j][x][k] = self._calc_A(j, training.data[x], self.one_of_k(k))
+        return A_matrix
+
     def _differential_b(self, q, training):
-        #probs_matrix = np.array([self.probability(x) for x in training.data])
         probs_matrix = self._get_probs_matrix(training.data)
         diff_b = np.sum(training.answer - probs_matrix, axis=0) / len(training.data)
         q.put(diff_b)
@@ -104,8 +112,7 @@ class DRBM:
     def _differential_w(self, q, training):
         vsigmoid = np.vectorize(self._sigmoid)
 
-        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
-        #probs_matrix = np.array([self.probability(x) for x in training.data])
+        A_matrix = self._get_A_matrix_diff(training)
         probs_matrix = self._get_probs_matrix(training.data)
 
         A_mul_difftp = vsigmoid(A_matrix) * (training.answer - probs_matrix)
@@ -115,8 +122,7 @@ class DRBM:
     def _differential_c(self, q, training):
         vsigmoid = np.vectorize(self._sigmoid)
 
-        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
-        #probs_matrix = np.array([self.probability(x) for x in training.data])
+        A_matrix = self._get_A_matrix_diff(training)
         probs_matrix = self._get_probs_matrix(training.data)
         sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
 
@@ -127,8 +133,7 @@ class DRBM:
     def _differential_v(self, q, training):
         vsigmoid = np.vectorize(self._sigmoid)
 
-        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
-        #probs_matrix = np.array([self.probability(x) for x in training.data])
+        A_matrix = self._get_A_matrix_diff(training)
         probs_matrix = self._get_probs_matrix(training.data)
         sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
 
