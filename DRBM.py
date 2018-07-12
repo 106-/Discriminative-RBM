@@ -172,10 +172,10 @@ class DRBM:
                 for p in processes:
                     p.join()
 
-                self.bias_b += diff_b * learning_rate[0] + self._old_diff_b * alpha[0]
-                self.weight_w += diff_w * learning_rate[1] + self._old_diff_w * alpha[1]
-                self.bias_c += diff_c * learning_rate[2] + self._old_diff_c * alpha[2]
-                self.weight_v += diff_v * learning_rate[3] + self._old_diff_v * alpha[3]
+                self.bias_b   += learning_rate[0] * (diff_b + self._old_diff_b * alpha[0])
+                self.weight_w += learning_rate[1] * (diff_w + self._old_diff_w * alpha[1])
+                self.bias_c   += learning_rate[2] * (diff_c + self._old_diff_c * alpha[2])
+                self.weight_v += learning_rate[3] * (diff_v + self._old_diff_v * alpha[3])
 
                 self._old_diff_b = diff_b
                 self._old_diff_w = diff_w
