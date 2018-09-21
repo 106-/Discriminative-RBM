@@ -50,6 +50,8 @@ def main():
     hidden_unit_num = 200
     class_num = 10
 
+    logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d"%(vector_size, hidden_unit_num, class_num))
+
     drbm = DRBM(vector_size, hidden_unit_num, class_num)
 
     # logging.info("creating dummy data.")
@@ -65,7 +67,7 @@ def main():
     logging.info("train started.")
     start_time = time.time()
 
-    drbm.train(train, test, 5000, 100, 8)
+    drbm.train(train, test, 5000, 100, 8, learning_rate=[0.1, 0.1, 1.0, 1.0])
     
     end_time = time.time()
     logging.info("☑ train complete. time: {} sec".format(end_time-start_time))

@@ -7,6 +7,7 @@ import numpy as np
 import json
 import logging
 import datetime
+import traceback
 from multiprocessing import Pool
 import multiprocessing as mp
 
@@ -19,14 +20,17 @@ class DRBM:
         # Xavierの初期値
         sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
         self.weight_v = sq_node * np.random.randn(self.num_visible, self.num_hidden)
-        self.weight_w = sq_node * np.random.randn(self.num_hidden, self.num_class) 
+        self.weight_w = sq_node * np.random.randn(self.num_class, self.num_hidden)  
         self.bias_c = sq_node * np.random.randn(self.num_hidden)
         self.bias_b = sq_node * np.random.randn(self.num_class)
 
         self._old_diff_b = np.zeros(num_class)
         self._old_diff_v = np.zeros((num_visible, num_hidden))
         self._old_diff_c = np.zeros(num_hidden)
-        self._old_diff_w = np.zeros((num_hidden, num_class))
+        self._old_diff_w = np.zeros((num_class, num_hidden))
+
+        self.vlog1p_exp = np.vectorize(self._log1p_exp)
+        self.vsigmoid = np.vectorize(self._sigmoid)
 
         self.resume = None
 
@@ -52,79 +56,39 @@ class DRBM:
             logging.debug(x)
             raise ValueError
     
-    # one-of-k表現のベクトルを生成
-    def one_of_k(self, number):
-        # "One of K" -> "ok"
-        ok = np.zeros(self.num_class)
-        ok.put(number, 1)
-        return ok
+    # 1kのA
+    def _matrix_ok_A(self, input_vector):
+        return self.bias_c + self.weight_w + np.dot(input_vector, self.weight_v)[:, np.newaxis, :]
 
-    # 31PにあるA_jを計算
-    def _calc_A(self, j, input_vector, one_of_k):
-        return self.bias_c[j] + np.dot(self.weight_w[j], one_of_k) + np.dot(self.weight_v[:,j], input_vector)
+    def _matrix_A(self, answer, data):
+        return self.bias_c + np.dot(answer, self.weight_w) + np.dot(data, self.weight_v)
 
-    def probability(self, input_vector, k=None):
-        vlog1p_exp = np.vectorize(self._log1p_exp)
-        A_matrix = np.array([[self._calc_A(m, input_vector, self.one_of_k(k)) for m in range(self.num_hidden)] for k in range(self.num_class)])
-        energies = self.bias_b + np.sum( vlog1p_exp(A_matrix) , axis=1)
+    # N個のデータに対して(K,N)の確率の行列を返す
+    def probability(self, A_matrix, normalize=True):
+        energies = self.bias_b + np.sum( self.vlog1p_exp(A_matrix) , axis=2)
 
-        energy_max = np.max(energies)
-        energies = np.exp(energies - energy_max)
-        # nc -> Normalize Constant
-        nc = np.sum(energies)
-        probs = energies / nc
-
-        if k == None:
-            return probs
+        if normalize:
+            max_energy = np.max(energies)
+            energies = np.exp(energies-max_energy)
+            return energies / np.sum(energies, axis=1)[:, np.newaxis]
         else:
-            return probs[k]
+            return energies
 
-    @numba.jit
-    def _get_A_matrix_diff(self, training):
-        A_matrix = np.zeros((self.num_hidden, len(training.data), self.num_class))
-        for j in range(self.num_hidden):
-            for x in range(len(training.data)):
-                for k in range(self.num_class):
-                    A_matrix[j][x][k] = self._calc_A(j, training.data[x], self.one_of_k(k))
-        return A_matrix
-
-    def _differential_b(self, q, training):
-        probs_matrix = np.array([self.probability(x) for x in training.data])
-        diff_b = np.sum(training.answer - probs_matrix, axis=0) / len(training.data)
+    def _differential_bw(self, q, training):
+        diff_tp = training.answer - self._probs_matrix
+        diff_b = np.sum(diff_tp, axis=0) / len(training.data)
+        diff_w = np.sum(np.multiply(self._A_matrix_ok, diff_tp[:, :, np.newaxis]), axis=0) / len(training.data)
         q.put(diff_b)
-    
-    def _differential_w(self, q, training):
-        vsigmoid = np.vectorize(self._sigmoid)
-
-        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
-        probs_matrix = np.array([self.probability(x) for x in training.data])
-
-        A_mul_difftp = vsigmoid(A_matrix) * (training.answer - probs_matrix)
-        diff_w = np.sum(A_mul_difftp, axis=1) / len(training.data)
         q.put(diff_w)
     
-    def _differential_c(self, q, training):
-        vsigmoid = np.vectorize(self._sigmoid)
-
-        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
-        probs_matrix = np.array([self.probability(x) for x in training.data])
-        sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
-
-        A_matrix_tx = np.array([[self._calc_A(m, training.data[u], training.answer[u]) for u in range(len(training.data))] for m in range(self.num_hidden)])
-        diff_c = np.sum( vsigmoid(A_matrix_tx) - sum_under_k, axis=1 ) / len(training.data)
+    def _differential_cv(self, q, training):
+        sum_under_k = np.sum( self._sig_A_ok * self._probs_matrix[:, :, np.newaxis], axis=1)
+        diff_sig_a = self._sig_A - sum_under_k
+        diff_c = np.sum( diff_sig_a, axis=0 ) / len(training.data)
+        diff_v = np.sum( np.multiply( training.data[:, :, np.newaxis], diff_sig_a[:, np.newaxis, :]), axis=0) / len(training.data)
         q.put(diff_c)
-    
-    def _differential_v(self, q, training):
-        vsigmoid = np.vectorize(self._sigmoid)
-
-        A_matrix = np.array([[[self._calc_A(m, x, self.one_of_k(k)) for k in range(self.num_class)] for x in training.data] for m in range(self.num_hidden)])
-        probs_matrix = np.array([self.probability(x) for x in training.data])
-        sum_under_k = np.sum( vsigmoid(A_matrix) * probs_matrix, axis=2)
-
-        A_matrix_tx = np.array([[self._calc_A(m, training.data[u], training.answer[u]) for u in range(len(training.data))] for m in range(self.num_hidden)])
-        diff_v = np.dot( training.data.T, (vsigmoid(A_matrix_tx) - sum_under_k).T) / len(training.data)
         q.put(diff_v)
-
+    
     def train(self, training, test, learning_time, batch_size, test_num_process, learning_rate=[0.01, 0.01, 0.1, 0.1], alpha=[0.9, 0.9, 0.9, 0.9], test_interval=100):
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
@@ -139,22 +103,27 @@ class DRBM:
         for lt in range(resume_time, learning_time):
             try:
                 batch = training.minibatch(batch_size)
+                self._A_matrix_ok = self._matrix_ok_A(batch.data)
+                self._A_matrix = self._matrix_A(batch.answer, batch.data)
+                self._probs_matrix = self.probability(self._A_matrix_ok)
+                self._sig_A_ok = self.vsigmoid(self._A_matrix_ok)
+                self._sig_A = self.vsigmoid(self._A_matrix)
 
-                q = [mp.Queue() for i in range(4)]
-                processes = [
-                    mp.Process(target=self._differential_b, args=(q[0],batch)),
-                    mp.Process(target=self._differential_w, args=(q[1],batch)),
-                    mp.Process(target=self._differential_c, args=(q[2],batch)),
-                    mp.Process(target=self._differential_v, args=(q[3],batch)),
-                ]
-                for p in processes:
-                    p.start()
+                q = [mp.Queue() for i in range(2)]
+                self._differential_bw(q[0], batch)
+                self._differential_cv(q[1], batch)
+                # processes = [
+                #     mp.Process(target=self._differential_bw, args=(q[0],batch)),
+                #     mp.Process(target=self._differential_cv, args=(q[1],batch)),
+                # ]
+                # for p in processes:
+                #     p.start()
                 diff_b = q[0].get()
-                diff_w = q[1].get()
-                diff_c = q[2].get()
-                diff_v = q[3].get()
-                for p in processes:
-                    p.join()
+                diff_w = q[0].get()
+                diff_c = q[1].get()
+                diff_v = q[1].get()
+                # for p in processes:
+                #     p.join()
 
                 self.bias_b   += learning_rate[0] * (diff_b + self._old_diff_b * alpha[0])
                 self.weight_w += learning_rate[1] * (diff_w + self._old_diff_w * alpha[1])
@@ -175,6 +144,7 @@ class DRBM:
 
             except ValueError as e:
                 logging.error(e)
+                logging.error(traceback.format_exc())
                 self.save("error.json")
                 logging.error("error parameter saved.")
                 exit()
@@ -194,14 +164,14 @@ class DRBM:
                     exit()
     
     def classify(self, input_data):
-        probs = self.probability(input_data)
-        return np.argmax(probs)
+        probs = self.probability(self._matrix_ok_A(input_data), normalize=False)
+        return np.argmax(probs, axis=1)
     
     def test_error(self, test, num_process):
         correct = 0
         logging.info("correct rate caluculating.")
-        splitted_datas = np.array_split(test.data, num_process)
-        splitted_answers = np.array_split(test.answer, num_process)
+        splitted_datas = np.array_split(test.data, num_process, axis=0)
+        splitted_answers = np.array_split(test.answer, num_process, axis=0)
         with Pool(processes=num_process) as pool:
             correct = np.sum(pool.map(self._count_correct, list(zip(splitted_datas, splitted_answers))))
         
@@ -209,8 +179,9 @@ class DRBM:
         logging.info("️correct rate: {} ({} / {})".format( correct_rate, correct, len(test.data) ))
 
     def _count_correct(self, args):
-        classified_data = np.array([self.one_of_k(self.classify(d)) for d in args[0]])
-        correct = int(np.sum( args[1] * classified_data ))
+        answers = np.dot( args[1], np.arange(self.num_class) )
+        classified_data = np.where( answers == self.classify(args[0]), 1, 0)
+        correct = np.sum( classified_data )
         return correct
 
     def save(self, filename, training_progress=None):
@@ -241,7 +212,6 @@ class DRBM:
 
 def main():
     drbm = DRBM(3, 5, 7)
-    a = drbm.probability(np.array([123,56,23]))
     print(a)
     print(sum(a))
 
