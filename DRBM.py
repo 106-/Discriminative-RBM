@@ -13,10 +13,12 @@ import multiprocessing as mp
 
 class DRBM:
 
-    def __init__(self, num_visible, num_hidden, num_class):
+    def __init__(self, num_visible, num_hidden, num_class, div_num):
         self.num_visible = num_visible
         self.num_hidden = num_hidden
         self.num_class = num_class
+        self.div_num = div_num
+        self.div_factors = np.linspace(-1, 1, self.div_num)
         # Xavierの初期値
         sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
         self.weight_v = sq_node * np.random.randn(self.num_visible, self.num_hidden)
@@ -31,6 +33,8 @@ class DRBM:
 
         self.vlog1p_exp = np.vectorize(self._log1p_exp)
         self.vsigmoid = np.vectorize(self._sigmoid)
+        self.vmarginal_prob = np.vectorize(self._marginal_prob)
+        self.vmarginal = np.vectorize(self._marginal)
 
         self.resume = None
 
@@ -56,16 +60,27 @@ class DRBM:
             logging.debug(x)
             raise ValueError
     
-    # 1kのA
+    def _marginal(self,x):
+        args = x * self.div_factors
+        denomi = np.sum(np.cosh(args))
+        nume = np.dot(self.div_factors, np.sinh(args))
+        return nume / denomi
+    
+    def _marginal_prob(self,x):
+        return np.log(np.sum(np.exp(self.div_factors * x)))
+
+    # 全クラス分/全データ分のA_jを計算(N,K,m)のサイズ
     def _matrix_ok_A(self, input_vector):
         return self.bias_c + self.weight_w + np.dot(input_vector, self.weight_v)[:, np.newaxis, :]
 
+    # データに対してのA_j (N,m)
     def _matrix_A(self, answer, data):
         return self.bias_c + np.dot(answer, self.weight_w) + np.dot(data, self.weight_v)
 
-    # N個のデータに対して(K,N)の確率の行列を返す
+    # N個のデータに対して(N,K)の確率の行列を返す
     def probability(self, A_matrix, normalize=True):
-        energies = self.bias_b + np.sum( self.vlog1p_exp(A_matrix) , axis=2)
+        # energies = self.bias_b + np.sum( self.vlog1p_exp(A_matrix) , axis=2)
+        energies = self.bias_b + np.sum( self.vmarginal_prob(A_matrix) , axis=2)
 
         if normalize:
             max_energy = np.max(energies)
@@ -74,6 +89,7 @@ class DRBM:
         else:
             return energies
 
+    # b,wの勾配を計算diff_bは(K),diff_wは(K,m)
     def _differential_bw(self, q, training):
         diff_tp = training.answer - self._probs_matrix
         diff_b = np.sum(diff_tp, axis=0) / len(training.data)
@@ -81,6 +97,7 @@ class DRBM:
         q.put(diff_b)
         q.put(diff_w)
     
+    # c,vの勾配 diff_cは(m), diff_vは(n,m)
     def _differential_cv(self, q, training):
         sum_under_k = np.sum( self._sig_A_ok * self._probs_matrix[:, :, np.newaxis], axis=1)
         diff_sig_a = self._sig_A - sum_under_k
@@ -106,24 +123,24 @@ class DRBM:
                 self._A_matrix_ok = self._matrix_ok_A(batch.data)
                 self._A_matrix = self._matrix_A(batch.answer, batch.data)
                 self._probs_matrix = self.probability(self._A_matrix_ok)
-                self._sig_A_ok = self.vsigmoid(self._A_matrix_ok)
-                self._sig_A = self.vsigmoid(self._A_matrix)
+                self._sig_A_ok = self.vmarginal(self._A_matrix_ok)
+                self._sig_A = self.vmarginal(self._A_matrix)
 
                 q = [mp.Queue() for i in range(2)]
-                self._differential_bw(q[0], batch)
-                self._differential_cv(q[1], batch)
-                # processes = [
-                #     mp.Process(target=self._differential_bw, args=(q[0],batch)),
-                #     mp.Process(target=self._differential_cv, args=(q[1],batch)),
-                # ]
-                # for p in processes:
-                #     p.start()
+                # self._differential_bw(q[0], batch)
+                # self._differential_cv(q[1], batch)
+                processes = [
+                    mp.Process(target=self._differential_bw, args=(q[0],batch)),
+                    mp.Process(target=self._differential_cv, args=(q[1],batch)),
+                ]
+                for p in processes:
+                    p.start()
                 diff_b = q[0].get()
                 diff_w = q[0].get()
                 diff_c = q[1].get()
                 diff_v = q[1].get()
-                # for p in processes:
-                #     p.join()
+                for p in processes:
+                    p.join()
 
                 self.bias_b   += learning_rate[0] * (diff_b + self._old_diff_b * alpha[0])
                 self.weight_w += learning_rate[1] * (diff_w + self._old_diff_w * alpha[1])

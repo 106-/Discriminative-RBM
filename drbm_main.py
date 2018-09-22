@@ -52,7 +52,7 @@ def main():
 
     logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d"%(vector_size, hidden_unit_num, class_num))
 
-    drbm = DRBM(vector_size, hidden_unit_num, class_num)
+    drbm = DRBM(vector_size, hidden_unit_num, class_num, 3)
 
     # logging.info("creating dummy data.")
     # train = dummy_data(100, vector_size, class_num)
