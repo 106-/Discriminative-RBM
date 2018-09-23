@@ -19,6 +19,8 @@ class DRBM:
         self.num_class = num_class
         self.div_num = div_num
         self.div_factors = np.linspace(-1, 1, self.div_num)
+        self.half_factors = self.div_factors[0 < self.div_factors]
+        self.div_odd = 0.5 if self.div_num%2 == 1 else 0
         # Xavierの初期値
         sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
         self.weight_v = sq_node * np.random.randn(self.num_visible, self.num_hidden)
@@ -61,9 +63,9 @@ class DRBM:
             raise ValueError
     
     def _marginal(self,x):
-        args = x * self.div_factors
-        denomi = np.sum(np.cosh(args))
-        nume = np.dot(self.div_factors, np.sinh(args))
+        args = x * self.half_factors
+        denomi = np.sum(np.cosh(args)) + self.div_odd
+        nume = np.sum(np.sinh(args))
         return nume / denomi
     
     def _marginal_prob(self,x):
