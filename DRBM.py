@@ -118,6 +118,9 @@ class DRBM:
             resume_time = self.resume[0]
             learning_time = self.resume[1]
 
+        logging.info("caclurating initial correct rate.")
+        self.test_error(test, test_num_process)
+
         for lt in range(resume_time, learning_time):
             try:
                 batch = training.minibatch(batch_size)
@@ -154,6 +157,8 @@ class DRBM:
                 self._old_diff_v = diff_v
 
                 if lt % test_interval == 0:
+                    if lt == 0:
+                        continue 
                     self.test_error(test, test_num_process)
                     self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
                     logging.info("parameters are dumpd.")
@@ -180,6 +185,9 @@ class DRBM:
                     continue
                 else:
                     exit()
+
+        logging.info("caclurating final correct rate.")
+        self.test_error(test, test_num_process)
     
     def classify(self, input_data):
         probs = self.probability(self._matrix_ok_A(input_data), normalize=False)
