@@ -83,7 +83,8 @@ class DRBM:
         energies = self.bias_b + np.sum( self.vmarginal_prob(A_matrix) , axis=2)
 
         if normalize:
-            max_energy = np.max(energies)
+            # それぞれのクラスの中から一番大きいものを引く
+            max_energy = np.max(energies, axis=1)[:, np.newaxis]
             energies = np.exp(energies-max_energy)
             return energies / np.sum(energies, axis=1)[:, np.newaxis]
         else:
@@ -211,6 +212,7 @@ class DRBM:
             "bias_c":self.bias_c.tolist(),
             "weight_w":self.weight_w.tolist(),
             "weight_v":self.weight_v.tolist(),
+            "div_num":self.div_num,
         }
         if not training_progress == None:
             params["training_progress"] = training_progress
@@ -219,7 +221,7 @@ class DRBM:
     @staticmethod
     def load_from_json(filename):
         params = json.load(open(filename, "r"))
-        drbm = DRBM(params["num_visible"], params["num_hidden"], params["num_class"])
+        drbm = DRBM(params["num_visible"], params["num_hidden"], params["num_class"], params["div_num"])
         drbm.bias_b = np.array(params["bias_b"])
         drbm.bias_c = np.array(params["bias_c"])
         drbm.weight_w = np.array(params["weight_w"])
