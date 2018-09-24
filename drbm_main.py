@@ -52,7 +52,8 @@ def main():
 
     logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d"%(vector_size, hidden_unit_num, class_num))
 
-    drbm = DRBM(vector_size, hidden_unit_num, class_num, 3)
+    drbm = DRBM(vector_size, hidden_unit_num, class_num, 0)
+    # drbm = DRBM.load_from_json("2400_of_5000.json")
 
     # logging.info("creating dummy data.")
     # train = dummy_data(100, vector_size, class_num)

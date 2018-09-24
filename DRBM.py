@@ -18,9 +18,10 @@ class DRBM:
         self.num_hidden = num_hidden
         self.num_class = num_class
         self.div_num = div_num
-        self.div_factors = np.linspace(-1, 1, self.div_num)
-        self.half_factors = self.div_factors[0 < self.div_factors]
-        self.div_odd = 0.5 if self.div_num%2 == 1 else 0
+        if self.div_num != 1 and self.div_num != 0:
+            self.div_factors = np.linspace(-1, 1, self.div_num)
+            self.half_factors = self.div_factors[0 < self.div_factors]
+            self.div_odd = 0.5 if self.div_num%2 == 1 else 0
         # Xavierの初期値
         sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
         self.weight_v = sq_node * np.random.randn(self.num_visible, self.num_hidden)
@@ -33,43 +34,48 @@ class DRBM:
         self._old_diff_c = np.zeros(num_hidden)
         self._old_diff_w = np.zeros((num_class, num_hidden))
 
-        self.vlog1p_exp = np.vectorize(self._log1p_exp)
-        self.vsigmoid = np.vectorize(self._sigmoid)
-        self.vmarginal_prob = np.vectorize(self._marginal_prob)
-        self.vmarginal = np.vectorize(self._marginal)
+        # div_numが1のときは従来のDRBM
+        if self.div_num == 1:
+            self._log1p_funclist = [self._log1p_exp_high, self._log1p_exp_low]
+            self.vmarginal_prob = self._log1p_exp
+            self.vmarginal = self._sigmoid
+        # 0のときはDRBM(∞)
+        elif self.div_num == 0:
+            self._marginal_inf_funcs = [self._marginal_inf_prob_nzero, self._marginal_inf_prob_zero]
+            self.vmarginal_prob = self._marginal_inf_prob
+            self.vmarginal = self._marginal_inf
+        else:
+            self.vmarginal_prob = np.vectorize(self._marginal_prob)
+            self.vmarginal = np.vectorize(self._marginal)
 
         self.resume = None
 
-    @staticmethod
-    def _sigmoid(x):
-        if -x > 708:
-            return 0.0
-        elif x > 708:
-            return 1.0
+    # 以下は周辺化の関数 匿名関数にするとプロセス分けできないのでこうなっている
+    def _sigmoid(self, x):
         return 1/(1+np.exp(-x))
-
-    @staticmethod
-    def _log1p_exp(x):
-        if x > 708:
-            return x
-        if 708 >= x > 0:
-            return x + np.log1p( np.exp(-x) )
-        elif 0 >= x > -708:
-            return np.log1p( np.exp(x) )
-        elif -708 >= x:
-            return 0.0
-        else:
-            logging.debug(x)
-            raise ValueError
+    def _log1p_exp(self, x):
+        return np.piecewise(x, [x>0], self._log1p_funclist)
+    def _log1p_exp_high(self, x):
+        return x+np.log1p(np.exp(-x))
+    def _log1p_exp_low(self, x):
+        return np.log1p( np.exp(x))
     
     def _marginal(self,x):
         args = x * self.half_factors
         denomi = np.sum(np.cosh(args)) + self.div_odd
         nume = np.sum(np.sinh(args))
         return nume / denomi
-    
     def _marginal_prob(self,x):
         return np.log(np.sum(np.exp(self.div_factors * x)))
+    
+    def _marginal_inf(self, x):
+        return (1 / np.tanh(x)) - (1/x)
+    def _marginal_inf_prob(self, x):
+        return np.piecewise(np.fabs(x), [x!=0], self._marginal_inf_funcs)
+    def _marginal_inf_prob_nzero(self, x):
+        return x+np.log( (1-np.exp(-2*x))/x )
+    def _marginal_inf_prob_zero(self, x):
+        return np.log(2)
 
     # 全クラス分/全データ分のA_jを計算(N,K,m)のサイズ
     def _matrix_ok_A(self, input_vector):
@@ -81,7 +87,6 @@ class DRBM:
 
     # N個のデータに対して(N,K)の確率の行列を返す
     def probability(self, A_matrix, normalize=True):
-        # energies = self.bias_b + np.sum( self.vlog1p_exp(A_matrix) , axis=2)
         energies = self.bias_b + np.sum( self.vmarginal_prob(A_matrix) , axis=2)
 
         if normalize:
