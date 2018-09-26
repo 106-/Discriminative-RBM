@@ -23,15 +23,10 @@ class LearningData:
 
 class MNIST(LearningData):
     def __init__(self, filename, num_class):
-        self.data = []
-        self.answer = []
-        with open(filename, "r") as f:
-            for line in f:
-                sp_line = line.split(",")
-                self.answer.append(one_of_k(num_class, int(sp_line[0])))
-                self.data.append(list(map(lambda x: float(x)/255, sp_line[1:])))
-        self.answer = np.array(self.answer)
-        self.data = np.array(self.data)
+        array = np.load(filename)
+        self.answer, self.data = np.split(array, [1], axis=1)
+        self.data = self.data.astype("float64") / 255
+        self.answer = np.eye(num_class)[self.answer.flatten().tolist()]
     
 class dummy_data(LearningData):
     def __init__(self, data_num, num_input, num_class):
@@ -52,8 +47,7 @@ def main():
 
     logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d"%(vector_size, hidden_unit_num, class_num))
 
-    drbm = DRBM(vector_size, hidden_unit_num, class_num, 0)
-    # drbm = DRBM.load_from_json("2400_of_5000.json")
+    drbm = DRBM(vector_size, hidden_unit_num, class_num, 4)
 
     # logging.info("creating dummy data.")
     # train = dummy_data(100, vector_size, class_num)
@@ -61,14 +55,14 @@ def main():
     # logging.info("☑ creating dummy data complete.")
 
     logging.info("️start loading data.")
-    train = MNIST("mnist_train.csv", class_num)
-    test = MNIST("mnist_test.csv", class_num)
+    train = MNIST("mnist_train.npy", class_num)
+    test = MNIST("mnist_test.npy", class_num)
     logging.info("☑ loading data complete.")
 
     logging.info("train started.")
     start_time = time.time()
 
-    drbm.train(train, test, 5000, 100, 8, learning_rate=[0.1, 0.1, 1.0, 1.0])
+    drbm.train(train, test, 50000, 100, 8, learning_rate=[0.1, 0.1, 1.0, 1.0])
     
     end_time = time.time()
     logging.info("☑ train complete. time: {} sec".format(end_time-start_time))
