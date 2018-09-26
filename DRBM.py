@@ -18,10 +18,7 @@ class DRBM:
         self.num_hidden = num_hidden
         self.num_class = num_class
         self.div_num = div_num
-        if self.div_num != 1 and self.div_num != 0:
-            self.div_factors = np.linspace(-1, 1, self.div_num)
-            self.half_factors = self.div_factors[0 < self.div_factors]
-            self.div_odd = 0.5 if self.div_num%2 == 1 else 0
+
         # Xavierの初期値
         sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
         self.weight_v = sq_node * np.random.randn(self.num_visible, self.num_hidden)
@@ -41,12 +38,12 @@ class DRBM:
             self.vmarginal = self._sigmoid
         # 0のときはDRBM(∞)
         elif self.div_num == 0:
-            self._marginal_inf_funcs = [self._marginal_inf_prob_nzero, self._marginal_inf_prob_zero]
             self.vmarginal_prob = self._marginal_inf_prob
             self.vmarginal = self._marginal_inf
         else:
-            self.vmarginal_prob = np.vectorize(self._marginal_prob)
-            self.vmarginal = np.vectorize(self._marginal)
+            self._div_factor = 2.0 / self.div_num-1
+            self.vmarginal_prob = self._marginal_prob
+            self.vmarginal = self._marginal
 
         self.resume = None
 
@@ -60,22 +57,23 @@ class DRBM:
     def _log1p_exp_low(self, x):
         return np.log1p( np.exp(x))
     
-    def _marginal(self,x):
-        args = x * self.half_factors
-        denomi = np.sum(np.cosh(args)) + self.div_odd
-        nume = np.sum(np.sinh(args))
-        return nume / denomi
-    def _marginal_prob(self,x):
-        return np.log(np.sum(np.exp(self.div_factors * x)))
+    def _marginal(self, x):
+        return np.piecewise(x, [x!=0], [self._marginal_nzero, 0])
+    def _marginal_nzero(self, x):
+        return -1 + self._div_factor * ( self._minus_sigmoid(self._div_factor * x) - self._minus_sigmoid( self._div_factor * self.div_num * x ) * self.div_num )
+    def _marginal_prob(self, x):
+        return np.piecewise(x, [x!=0], [self._marginal_prob_nzero, np.log(5)])
+    def _marginal_prob_nzero(self,x):
+        return -x + np.log( (1-np.exp(self._div_factor * self.div_num * x)) / (1-np.exp(self._div_factor * x)) )
+    def _minus_sigmoid(self, x):
+        return 1 / (np.exp(-x)-1)
     
     def _marginal_inf(self, x):
         return (1 / np.tanh(x)) - (1/x)
     def _marginal_inf_prob(self, x):
-        return np.piecewise(np.fabs(x), [x!=0], self._marginal_inf_funcs)
+        return np.piecewise(np.fabs(x), [x!=0], [self._marginal_inf_prob_nzero, np.log(2)])
     def _marginal_inf_prob_nzero(self, x):
         return x+np.log( (1-np.exp(-2*x))/x )
-    def _marginal_inf_prob_zero(self, x):
-        return np.log(2)
 
     # 全クラス分/全データ分のA_jを計算(N,K,m)のサイズ
     def _matrix_ok_A(self, input_vector):
@@ -114,7 +112,7 @@ class DRBM:
         q.put(diff_c)
         q.put(diff_v)
     
-    def train(self, training, test, learning_time, batch_size, test_num_process, learning_rate=[0.01, 0.01, 0.1, 0.1], alpha=[0.9, 0.9, 0.9, 0.9], test_interval=100):
+    def train(self, training, test, learning_time, batch_size, test_num_process, learning_rate=[0.01, 0.01, 0.1, 0.1], alpha=[0.9, 0.9, 0.9, 0.9], test_interval=100, dump_parameter=False):
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
             raise TypeError
@@ -167,8 +165,10 @@ class DRBM:
                     if lt == 0:
                         continue 
                     self.test_error(test, test_num_process)
-                    self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
-                    logging.info("parameters are dumpd.")
+
+                    if dump_parameter:
+                        self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
+                        logging.info("parameters are dumped.")
 
                 logging.info("️training is processing. complete : {} / {}".format(lt+1, learning_time))
 
