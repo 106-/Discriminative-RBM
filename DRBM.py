@@ -112,19 +112,30 @@ class DRBM:
         q.put(diff_c)
         q.put(diff_v)
     
-    def train(self, training, test, learning_time, batch_size, test_num_process, learning_rate=[0.01, 0.01, 0.1, 0.1], alpha=[0.9, 0.9, 0.9, 0.9], test_interval=100, dump_parameter=False):
+    def train(self, training, test, learning_time, batch_size, learning_rate=[0.01, 0.01, 0.1, 0.1], alpha=[0.9, 0.9, 0.9, 0.9], test_interval=100, dump_parameter=False, calc_train_correct_rate=False):
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
             raise TypeError
         
         resume_time = 0
 
+        def train_correct_rate(train):
+            correct_rate, correct = self.test_error(train)
+            logging.info("️train correct rate: {} ({} / {})".format( correct_rate, correct, len(train.data) ))
+
+        def test_correct_rate(test):
+            correct_rate, correct = self.test_error(test)
+            logging.info("️test correct rate: {} ({} / {})".format( correct_rate, correct, len(test.data) ))
+
         if not self.resume == None:
             resume_time = self.resume[0]
             learning_time = self.resume[1]
 
-        logging.info("caclurating initial correct rate.")
-        self.test_error(test, test_num_process)
+        logging.info("calculating initial correct rate.")
+        test_correct_rate(test)
+
+        if calc_train_correct_rate:
+            train_correct_rate(training)
 
         for lt in range(resume_time, learning_time):
             try:
@@ -161,10 +172,10 @@ class DRBM:
                 self._old_diff_c = diff_c
                 self._old_diff_v = diff_v
 
-                if lt % test_interval == 0:
-                    if lt == 0:
-                        continue 
-                    self.test_error(test, test_num_process)
+                if lt % test_interval == 0 and lt!=0:
+                    test_correct_rate(test)
+                    if calc_train_correct_rate:
+                        train_correct_rate(training)
 
                     if dump_parameter:
                         self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
@@ -193,29 +204,25 @@ class DRBM:
                 else:
                     exit()
 
-        logging.info("caclurating final correct rate.")
+        logging.info("calculating final correct rate.")
         self.test_error(test, test_num_process)
     
     def classify(self, input_data):
         probs = self.probability(self._matrix_ok_A(input_data), normalize=False)
         return np.argmax(probs, axis=1)
     
-    def test_error(self, test, num_process):
+    def test_error(self, test):
         correct = 0
-        logging.info("correct rate caluculating.")
-        splitted_datas = np.array_split(test.data, num_process, axis=0)
-        splitted_answers = np.array_split(test.answer, num_process, axis=0)
-        with Pool(processes=num_process) as pool:
-            correct = np.sum(pool.map(self._count_correct, list(zip(splitted_datas, splitted_answers))))
-        
+        logging.info("correct rate calculating.")
+        split_num = np.ceil( len(test.answer)/10000 )
+        splitted_datas = np.array_split(test.data, split_num, axis=0)
+        splitted_answers = np.array_split(test.answer, split_num, axis=0)
+        for d,a in zip(splitted_datas, splitted_answers):
+            answers = np.dot( a, np.arange(self.num_class) )
+            classified_data = np.where( answers == self.classify( d ), 1, 0)
+            correct += np.sum( classified_data )
         correct_rate = correct / float(len(test.data))
-        logging.info("️correct rate: {} ({} / {})".format( correct_rate, correct, len(test.data) ))
-
-    def _count_correct(self, args):
-        answers = np.dot( args[1], np.arange(self.num_class) )
-        classified_data = np.where( answers == self.classify(args[0]), 1, 0)
-        correct = np.sum( classified_data )
-        return correct
+        return correct_rate, correct
 
     def save(self, filename, training_progress=None):
         params = {

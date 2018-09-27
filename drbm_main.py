@@ -62,7 +62,7 @@ def main():
     logging.info("train started.")
     start_time = time.time()
 
-    drbm.train(train, test, 50000, 100, 8, learning_rate=[0.1, 0.1, 1.0, 1.0])
+    drbm.train(train, test, 50000, 100, learning_rate=[0.1, 0.1, 1.0, 1.0], calc_train_correct_rate=True)
     
     end_time = time.time()
     logging.info("☑ train complete. time: {} sec".format(end_time-start_time))
