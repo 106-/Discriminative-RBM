@@ -13,18 +13,24 @@ import multiprocessing as mp
 
 class DRBM:
 
-    def __init__(self, num_visible, num_hidden, num_class, div_num):
+    def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None):
         self.num_visible = num_visible
         self.num_hidden = num_hidden
         self.num_class = num_class
         self.div_num = div_num
 
-        # Xavierの初期値
-        sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
-        self.weight_v = sq_node * np.random.randn(self.num_visible, self.num_hidden)
-        self.weight_w = sq_node * np.random.randn(self.num_class, self.num_hidden)  
-        self.bias_c = sq_node * np.random.randn(self.num_hidden)
-        self.bias_b = sq_node * np.random.randn(self.num_class)
+        if initial_parameter:
+            self.weight_w = initial_parameter["weight_w"]
+            self.weight_v = initial_parameter["weight_v"]
+            self.bias_c = initial_parameter["bias_c"]
+            self.bias_b = initial_parameter["bias_b"]
+        else:
+            # Xavierの初期値
+            sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
+            self.weight_v = sq_node * np.random.randn(self.num_visible, self.num_hidden)
+            self.weight_w = sq_node * np.random.randn(self.num_class, self.num_hidden)  
+            self.bias_c = sq_node * np.random.randn(self.num_hidden)
+            self.bias_b = sq_node * np.random.randn(self.num_class)
 
         self._old_diff_b = np.zeros(num_class)
         self._old_diff_v = np.zeros((num_visible, num_hidden))
@@ -41,7 +47,7 @@ class DRBM:
             self.vmarginal_prob = self._marginal_inf_prob
             self.vmarginal = self._marginal_inf
         else:
-            self._div_factor = 2.0 / self.div_num-1
+            self._div_factor = 2.0 / (self.div_num-1)
             self.vmarginal_prob = self._marginal_prob
             self.vmarginal = self._marginal
 
@@ -62,11 +68,11 @@ class DRBM:
     def _marginal_nzero(self, x):
         return -1 + self._div_factor * ( self._minus_sigmoid(self._div_factor * x) - self._minus_sigmoid( self._div_factor * self.div_num * x ) * self.div_num )
     def _marginal_prob(self, x):
-        return np.piecewise(x, [x!=0], [self._marginal_prob_nzero, np.log(5)])
+        return np.piecewise(x, [x!=0], [self._marginal_inf_prob_nzero, np.log(self.div_num)])
     def _marginal_prob_nzero(self,x):
         return -x + np.log( (1-np.exp(self._div_factor * self.div_num * x)) / (1-np.exp(self._div_factor * x)) )
     def _minus_sigmoid(self, x):
-        return 1 / (np.exp(-x)-1)
+        return np.piecewise(x, [x>0], [lambda x: 1 / (np.exp(-x)-1), lambda x: -1/(np.exp(x)-1)-1])
     
     def _marginal_inf(self, x):
         return (1 / np.tanh(x)) - (1/x)
@@ -186,26 +192,25 @@ class DRBM:
             except ValueError as e:
                 logging.error(e)
                 logging.error(traceback.format_exc())
-                self.save("error.json")
+                self.save("value-error.json")
+                logging.error("error parameter saved.")
+                exit()
+            
+            except FloatingPointError as e:
+                logging.error(e)
+                logging.error(traceback.format_exc())
+                self.save("floating-point-error.json")
                 logging.error("error parameter saved.")
                 exit()
 
             except KeyboardInterrupt as e:
                 logging.info("train interrupted.")
-
-                now = datetime.datetime.now()
-                filename = now.strftime("%Y-%m-%d_%H-%M-%S.json")
-                self.save(filename, [lt, learning_time])
-
-                logging.info("parameters are dumped to %s"%filename)
-                input_data = input('continue? (type "Y" to continue) : ')
-                if input_data.upper() == "Y":
-                    continue
-                else:
-                    exit()
+                exit()
 
         logging.info("calculating final correct rate.")
-        self.test_error(test, test_num_process)
+        test_correct_rate(test)
+        if calc_train_correct_rate:
+            train_correct_rate(training)
     
     def classify(self, input_data):
         probs = self.probability(self._matrix_ok_A(input_data), normalize=False)
