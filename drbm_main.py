@@ -13,6 +13,7 @@ np.seterr(over="raise", invalid="raise")
 parser = argparse.ArgumentParser(description="DRBM learning script")
 parser.add_argument("learning_num", action="store", type=int, help="number of updating parameters")
 parser.add_argument("division_num", action="store", type=int, help="number of dividing middle layer")
+parser.add_argument("-l", "--datasize_limit", action="store", default=0, type=int, help="limit data size")
 parser.add_argument("-m", "--minibatch_size", action="store", default=100, type=int, help="minibatch size")
 args = parser.parse_args()
 
@@ -40,6 +41,14 @@ class MNIST(LearningData):
         self.answer, self.data = np.split(array, [1], axis=1)
         self.data = self.data.astype("float64") / 255
         self.answer = np.eye(num_class)[self.answer.flatten().tolist()]
+
+class normalized_MNIST(LearningData):
+    def __init__(self, filename, num_class):
+        array = np.load(filename)
+        self.answer, self.data = np.split(array, [1], axis=1)
+        self.answer = np.eye(num_class)[self.answer.astype("int64").flatten().tolist()]
+        print(self.data)
+        print(self.answer)
     
 class dummy_data(LearningData):
     def __init__(self, data_num, num_input, num_class):
@@ -74,6 +83,9 @@ def main():
     train = MNIST("mnist_train.npy", class_num)
     test = MNIST("mnist_test.npy", class_num)
     logging.info("☑ loading data complete.")
+
+    if args.datasize_limit != 0:
+        train = train.minibatch(args.datasize_limit, random=False)
 
     logging.info("train started.")
     start_time = time.time()

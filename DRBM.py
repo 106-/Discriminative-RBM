@@ -68,7 +68,7 @@ class DRBM:
     def _marginal_nzero(self, x):
         return -1 + self._div_factor * ( self._minus_sigmoid(self._div_factor * x) - self._minus_sigmoid( self._div_factor * self.div_num * x ) * self.div_num )
     def _marginal_prob(self, x):
-        return np.piecewise(x, [x!=0], [self._marginal_inf_prob_nzero, np.log(self.div_num)])
+        return np.piecewise(x, [x!=0], [self._marginal_prob_nzero, np.log(self.div_num)])
     def _marginal_prob_nzero(self,x):
         return -x + np.log( (1-np.exp(self._div_factor * self.div_num * x)) / (1-np.exp(self._div_factor * x)) )
     def _minus_sigmoid(self, x):
