@@ -2,6 +2,7 @@
 # -*- coding:utf-8 -*-
 
 from DRBM import DRBM
+import optimizer
 import time
 import numpy as np
 import logging
@@ -47,8 +48,6 @@ class normalized_MNIST(LearningData):
         array = np.load(filename)
         self.answer, self.data = np.split(array, [1], axis=1)
         self.answer = np.eye(num_class)[self.answer.astype("int64").flatten().tolist()]
-        print(self.data)
-        print(self.answer)
     
 class dummy_data(LearningData):
     def __init__(self, data_num, num_input, num_class):
@@ -81,7 +80,8 @@ def main():
 
     logging.info("️start loading data.")
     train = MNIST("mnist_train.npy", class_num)
-    test = MNIST("mnist_test.npy", class_num)
+    #test = MNIST("mnist_test.npy", class_num)
+    test = normalized_MNIST("mnist_noise_test_d0.4.npy", class_num)
     logging.info("☑ loading data complete.")
 
     if args.datasize_limit != 0:
@@ -90,7 +90,8 @@ def main():
     logging.info("train started.")
     start_time = time.time()
 
-    drbm.train(train, test, args.learning_num, args.minibatch_size, learning_rate=[0.1, 0.1, 1.0, 1.0], calc_train_correct_rate=True)
+    opt = optimizer.momentum(vector_size, hidden_unit_num, class_num)
+    drbm.train(train, test, args.learning_num, args.minibatch_size, opt, calc_train_correct_rate=True)
     
     end_time = time.time()
     logging.info("☑ train complete. time: {} sec".format(end_time-start_time))

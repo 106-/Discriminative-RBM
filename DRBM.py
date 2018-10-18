@@ -11,6 +11,27 @@ import traceback
 from multiprocessing import Pool
 import multiprocessing as mp
 
+
+class parameters:
+    def __init__(self, num_visible, num_hidden, num_class, randominit=True, initial_parameter=None):
+        if randominit:
+            # Xavierの初期値
+            sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
+            self.weight_v = sq_node * np.random.randn(num_visible, num_hidden)
+            self.weight_w = sq_node * np.random.randn(num_class, num_hidden)  
+            self.bias_c = sq_node * np.random.randn(num_hidden)
+            self.bias_b = sq_node * np.random.randn(num_class)
+        elif initial_parameter:
+            self.weight_w = initial_parameter["weight_w"]
+            self.weight_v = initial_parameter["weight_v"]
+            self.bias_c = initial_parameter["bias_c"]
+            self.bias_b = initial_parameter["bias_b"]
+        else:
+            self.bias_b = np.zeros(num_class)
+            self.weight_w = np.zeros((num_class, num_hidden))
+            self.bias_c = np.zeros(num_hidden)
+            self.weight_v = np.zeros((num_visible, num_hidden))
+
 class DRBM:
 
     def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None):
@@ -19,23 +40,11 @@ class DRBM:
         self.num_class = num_class
         self.div_num = div_num
 
+        self.grad = parameters(num_visible, num_hidden, num_class, randominit=False)
         if initial_parameter:
-            self.weight_w = initial_parameter["weight_w"]
-            self.weight_v = initial_parameter["weight_v"]
-            self.bias_c = initial_parameter["bias_c"]
-            self.bias_b = initial_parameter["bias_b"]
+            self.para = parameters(num_visible, num_hidden, num_class, initial_parameter=initial_parameter)
         else:
-            # Xavierの初期値
-            sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
-            self.weight_v = sq_node * np.random.randn(self.num_visible, self.num_hidden)
-            self.weight_w = sq_node * np.random.randn(self.num_class, self.num_hidden)  
-            self.bias_c = sq_node * np.random.randn(self.num_hidden)
-            self.bias_b = sq_node * np.random.randn(self.num_class)
-
-        self._old_diff_b = np.zeros(num_class)
-        self._old_diff_v = np.zeros((num_visible, num_hidden))
-        self._old_diff_c = np.zeros(num_hidden)
-        self._old_diff_w = np.zeros((num_class, num_hidden))
+            self.para = parameters(num_visible, num_hidden, num_class)
 
         # div_numが1のときは従来のDRBM
         if self.div_num == 1:
@@ -83,15 +92,15 @@ class DRBM:
 
     # 全クラス分/全データ分のA_jを計算(N,K,m)のサイズ
     def _matrix_ok_A(self, input_vector):
-        return self.bias_c + self.weight_w + np.dot(input_vector, self.weight_v)[:, np.newaxis, :]
+        return self.para.bias_c + self.para.weight_w + np.dot(input_vector, self.para.weight_v)[:, np.newaxis, :]
 
     # データに対してのA_j (N,m)
     def _matrix_A(self, answer, data):
-        return self.bias_c + np.dot(answer, self.weight_w) + np.dot(data, self.weight_v)
+        return self.para.bias_c + np.dot(answer, self.para.weight_w) + np.dot(data, self.para.weight_v)
 
     # N個のデータに対して(N,K)の確率の行列を返す
     def probability(self, A_matrix, normalize=True):
-        energies = self.bias_b + np.sum( self.vmarginal_prob(A_matrix) , axis=2)
+        energies = self.para.bias_b + np.sum( self.vmarginal_prob(A_matrix) , axis=2)
 
         if normalize:
             # それぞれのクラスの中から一番大きいものを引く
@@ -118,7 +127,7 @@ class DRBM:
         q.put(diff_c)
         q.put(diff_v)
     
-    def train(self, training, test, learning_time, batch_size, learning_rate=[0.01, 0.01, 0.1, 0.1], alpha=[0.9, 0.9, 0.9, 0.9], test_interval=100, dump_parameter=False, calc_train_correct_rate=False):
+    def train(self, training, test, learning_time, batch_size, optimizer, test_interval=100, dump_parameter=False, calc_train_correct_rate=False):
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
             raise TypeError
@@ -161,22 +170,18 @@ class DRBM:
                 ]
                 for p in processes:
                     p.start()
-                diff_b = q[0].get()
-                diff_w = q[0].get()
-                diff_c = q[1].get()
-                diff_v = q[1].get()
+                self.grad.bias_b = q[0].get()
+                self.grad.weight_w = q[0].get()
+                self.grad.bias_c = q[1].get()
+                self.grad.weight_v = q[1].get()
                 for p in processes:
                     p.join()
 
-                self.bias_b   += learning_rate[0] * (diff_b + self._old_diff_b * alpha[0])
-                self.weight_w += learning_rate[1] * (diff_w + self._old_diff_w * alpha[1])
-                self.bias_c   += learning_rate[2] * (diff_c + self._old_diff_c * alpha[2])
-                self.weight_v += learning_rate[3] * (diff_v + self._old_diff_v * alpha[3])
-
-                self._old_diff_b = diff_b
-                self._old_diff_w = diff_w
-                self._old_diff_c = diff_c
-                self._old_diff_v = diff_v
+                diff = optimizer.update(self.grad)
+                self.para.bias_b   += diff.bias_b
+                self.para.weight_w += diff.weight_w
+                self.para.bias_c   += diff.bias_c
+                self.para.weight_v += diff.weight_v
 
                 if lt % test_interval == 0 and lt!=0:
                     test_correct_rate(test)
@@ -235,10 +240,10 @@ class DRBM:
             "num_class":self.num_class,
             "num_hidden":self.num_hidden,
             "num_visible":self.num_visible,
-            "bias_b":self.bias_b.tolist(),
-            "bias_c":self.bias_c.tolist(),
-            "weight_w":self.weight_w.tolist(),
-            "weight_v":self.weight_v.tolist(),
+            "bias_b":self.para.bias_b.tolist(),
+            "bias_c":self.para.bias_c.tolist(),
+            "weight_w":self.para.weight_w.tolist(),
+            "weight_v":self.para.weight_v.tolist(),
             "div_num":self.div_num,
         }
         if not training_progress == None:
@@ -249,10 +254,10 @@ class DRBM:
     def load_from_json(filename):
         params = json.load(open(filename, "r"))
         drbm = DRBM(params["num_visible"], params["num_hidden"], params["num_class"], params["div_num"])
-        drbm.bias_b = np.array(params["bias_b"])
-        drbm.bias_c = np.array(params["bias_c"])
-        drbm.weight_w = np.array(params["weight_w"])
-        drbm.weight_v = np.array(params["weight_v"])
+        drbm.para.bias_b = np.array(params["bias_b"])
+        drbm.para.bias_c = np.array(params["bias_c"])
+        drbm.para.weight_w = np.array(params["weight_w"])
+        drbm.para.weight_v = np.array(params["weight_v"])
         drbm.resume = params["training_progress"]
         return drbm
 
