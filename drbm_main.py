@@ -77,6 +77,7 @@ def main():
     }
 
     drbm = DRBM(vector_size, hidden_unit_num, class_num, hidden_layer_value_num, initial_parameter=initial_parameters)
+    # drbm = DRBM(vector_size, hidden_unit_num, class_num, hidden_layer_value_num)
 
     logging.info("️start loading data.")
     train = MNIST("mnist_train.npy", class_num)
@@ -90,7 +91,8 @@ def main():
     logging.info("train started.")
     start_time = time.time()
 
-    opt = optimizer.momentum(vector_size, hidden_unit_num, class_num)
+    # opt = optimizer.momentum(vector_size, hidden_unit_num, class_num)
+    opt = optimizer.adamax(vector_size, hidden_unit_num, class_num)
     drbm.train(train, test, args.learning_num, args.minibatch_size, opt, calc_train_correct_rate=True)
     
     end_time = time.time()

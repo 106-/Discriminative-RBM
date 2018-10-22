@@ -14,6 +14,10 @@ import multiprocessing as mp
 
 class parameters:
     def __init__(self, num_visible, num_hidden, num_class, randominit=True, initial_parameter=None):
+        self.num_visible = num_visible
+        self.num_hidden = num_hidden
+        self.num_class = num_class
+
         if randominit:
             # Xavierの初期値
             sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
@@ -31,6 +35,47 @@ class parameters:
             self.weight_w = np.zeros((num_class, num_hidden))
             self.bias_c = np.zeros(num_hidden)
             self.weight_v = np.zeros((num_visible, num_hidden))
+    
+    def _arithmetic(self, other, operation_func):
+        res = parameters(self.num_visible, self.num_hidden, self.num_class, randominit=False)
+        if isinstance(other, parameters):
+            operation_func(self.bias_b, other.bias_b, out=res.bias_b)
+            operation_func(self.bias_c, other.bias_c, out=res.bias_c)
+            operation_func(self.weight_v, other.weight_v, out=res.weight_v)
+            operation_func(self.weight_w, other.weight_w, out=res.weight_w)
+        # 演算の対象がparamtersでない場合は,そのままの計算を試みる
+        else:
+            operation_func(self.bias_b, other, out=res.bias_b)
+            operation_func(self.bias_c, other, out=res.bias_c)
+            operation_func(self.weight_v, other, out=res.weight_v)
+            operation_func(self.weight_w, other, out=res.weight_w)
+        return res
+
+    def __add__(self, other):
+        return self._arithmetic(other, np.add)
+    def __mul__(self, other):
+        return self._arithmetic(other, np.multiply)
+    def __truediv__(self, other):
+        return self._arithmetic(other, np.true_divide)
+    def __sub__(self, other):
+        return self._arithmetic(other, np.subtract)
+
+    def __abs__(self):
+        res = parameters(self.num_visible, self.num_hidden, self.num_class, randominit=False)
+        np.fabs(self.bias_b, out=res.bias_b)
+        np.fabs(self.bias_c, out=res.bias_c)
+        np.fabs(self.weight_w, out=res.weight_w)
+        np.fabs(self.weight_v, out=res.weight_v)
+        return res
+    
+    # 2つのパラメータを比較して,大きいほうのみを抽出する関数
+    def max(para_a, para_b):
+        res = parameters(para_a.num_visible, para_a.num_hidden, para_a.num_class, randominit=False)
+        np.max( np.concatenate((para_a.bias_b[np.newaxis, :], para_b.bias_b[np.newaxis, :]), axis=0), axis=0, out=res.bias_b )
+        np.max( np.concatenate((para_a.bias_c[np.newaxis, :], para_b.bias_c[np.newaxis, :]), axis=0), axis=0, out=res.bias_c )
+        np.max( np.concatenate((para_a.weight_w[np.newaxis, :, :], para_b.weight_w[np.newaxis, :, :]), axis=0), axis=0, out=res.weight_w )
+        np.max( np.concatenate((para_a.weight_v[np.newaxis, :, :], para_b.weight_v[np.newaxis, :, :]), axis=0), axis=0, out=res.weight_v )
+        return res
 
 class DRBM:
 
