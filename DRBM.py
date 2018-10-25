@@ -59,14 +59,19 @@ class parameters:
         return self._arithmetic(other, np.true_divide)
     def __sub__(self, other):
         return self._arithmetic(other, np.subtract)
+    def __pow__(self, other):
+        return self._arithmetic(other, np.power)
+
+    def map(self, npfunc):
+        res = parameters(self.num_visible, self.num_hidden, self.num_class, randominit=False)
+        npfunc(self.bias_b, out=res.bias_b)
+        npfunc(self.bias_c, out=res.bias_c)
+        npfunc(self.weight_v, out=res.weight_v)
+        npfunc(self.weight_w, out=res.weight_w)
+        return res
 
     def __abs__(self):
-        res = parameters(self.num_visible, self.num_hidden, self.num_class, randominit=False)
-        np.fabs(self.bias_b, out=res.bias_b)
-        np.fabs(self.bias_c, out=res.bias_c)
-        np.fabs(self.weight_w, out=res.weight_w)
-        np.fabs(self.weight_v, out=res.weight_v)
-        return res
+        return self.map(np.fabs)
     
     # 2つのパラメータを比較して,大きいほうのみを抽出する関数
     def max(para_a, para_b):

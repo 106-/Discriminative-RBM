@@ -92,7 +92,8 @@ def main():
     start_time = time.time()
 
     # opt = optimizer.momentum(vector_size, hidden_unit_num, class_num)
-    opt = optimizer.adamax(vector_size, hidden_unit_num, class_num)
+    # opt = optimizer.adamax(vector_size, hidden_unit_num, class_num)
+    opt = optimizer.adam(vector_size, hidden_unit_num, class_num)
     drbm.train(train, test, args.learning_num, args.minibatch_size, opt, calc_train_correct_rate=True)
     
     end_time = time.time()

@@ -46,3 +46,23 @@ class adamax(optimizer):
         self._norm = parameters.max( self._norm * self._beta2, abs(grad) )
         self._diff = self._moment / (self._norm + self._epsilon) * (self._alpha/(1-np.power(self._beta1, self._t)))
         return self._diff
+
+class adam(optimizer):
+    def __init__(self, num_visible, num_hidden, num_class, alpha=0.001, beta1=0.9, beta2=0.999, epsilon=1e-8):
+        self._alpha = alpha
+        self._beta1 = beta1
+        self._beta2 = beta2
+        self._epsilon = epsilon
+        self._t = 0
+
+        self._moment_m = parameters(num_visible, num_hidden, num_class, randominit=False)
+        self._moment_v = parameters(num_visible, num_hidden, num_class, randominit=False)
+
+    def update(self, grad):
+        self._t += 1
+        self._moment_m = self._moment_m * self._beta1 + grad * (1-self._beta1)
+        self._moment_v = self._moment_v * self._beta2 + grad**2 * (1-self._beta2)
+        m_hat = self._moment_m / (1-np.power(self._beta1, self._t))
+        v_hat = self._moment_v / (1-np.power(self._beta2, self._t))
+        diff = m_hat / ( v_hat.map(np.sqrt) + self._epsilon ) * self._alpha
+        return diff
