@@ -16,6 +16,7 @@ parser.add_argument("learning_num", action="store", type=int, help="number of up
 parser.add_argument("division_num", action="store", type=int, help="number of dividing middle layer")
 parser.add_argument("-l", "--datasize_limit", action="store", default=0, type=int, help="limit data size")
 parser.add_argument("-m", "--minibatch_size", action="store", default=100, type=int, help="minibatch size")
+parser.add_argument("-o", "--optimizer", action="store", default="adamax", type=str, help="optimizer")
 args = parser.parse_args()
 
 class LearningData:
@@ -97,12 +98,20 @@ def main():
     if args.datasize_limit != 0:
         train = train.restore_minibatch(args.datasize_limit, random=False)
 
+    opt = None
+    if args.optimizer == "momentum":
+        logging.info("optimize method: momentum")
+        opt = optimizer.momentum(vector_size, hidden_unit_num, class_num)
+    elif args.optimizer == "adam":
+        logging.info("optimize method: adam")
+        opt = optimizer.adam(vector_size, hidden_unit_num, class_num)
+    else:
+        logging.info("optimize method: adamax")
+        opt = optimizer.adamax(vector_size, hidden_unit_num, class_num)
+
     logging.info("train started.")
     start_time = time.time()
 
-    opt = optimizer.momentum(vector_size, hidden_unit_num, class_num)
-    # opt = optimizer.adamax(vector_size, hidden_unit_num, class_num)
-    # opt = optimizer.adam(vector_size, hidden_unit_num, class_num)
     drbm.train(train, test, args.learning_num, args.minibatch_size, opt, calc_train_correct_rate=True)
     
     end_time = time.time()
