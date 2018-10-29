@@ -39,7 +39,6 @@ class LearningData:
     
     def minibatch(self, batchsize):
         if len(self.minibatch_buffer)==0:
-            print("minibatch reset!!!")
             self.minibatch_buffer = np.random.choice(np.arange(0, len(self.data)), size=len(self.data), replace=False)
         idx, self.minibatch_buffer = np.split(self.minibatch_buffer, [batchsize])
         batch_data = self.data[idx]
