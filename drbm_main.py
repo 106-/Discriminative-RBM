@@ -22,8 +22,9 @@ class LearningData:
     def __init__(self, data, answer):
         self.data = data
         self.answer = answer
+        self.minibatch_buffer = np.array([])
 
-    def minibatch(self, batchsize, random=True):
+    def restore_minibatch(self, batchsize, random=True):
         batch_data = None
         batch_answer = None
         if random:
@@ -34,6 +35,15 @@ class LearningData:
         else:
             batch_data = self.data[:batchsize]
             batch_answer = self.answer[:batchsize]
+        return LearningData(batch_data, batch_answer)
+    
+    def minibatch(self, batchsize):
+        if len(self.minibatch_buffer)==0:
+            print("minibatch reset!!!")
+            self.minibatch_buffer = np.random.choice(np.arange(0, len(self.data)), size=len(self.data), replace=False)
+        idx, self.minibatch_buffer = np.split(self.minibatch_buffer, [batchsize])
+        batch_data = self.data[idx]
+        batch_answer = self.answer[idx]
         return LearningData(batch_data, batch_answer)
 
 class MNIST(LearningData):
@@ -86,14 +96,14 @@ def main():
     logging.info("☑ loading data complete.")
 
     if args.datasize_limit != 0:
-        train = train.minibatch(args.datasize_limit, random=False)
+        train = train.restore_minibatch(args.datasize_limit, random=False)
 
     logging.info("train started.")
     start_time = time.time()
 
-    # opt = optimizer.momentum(vector_size, hidden_unit_num, class_num)
+    opt = optimizer.momentum(vector_size, hidden_unit_num, class_num)
     # opt = optimizer.adamax(vector_size, hidden_unit_num, class_num)
-    opt = optimizer.adam(vector_size, hidden_unit_num, class_num)
+    # opt = optimizer.adam(vector_size, hidden_unit_num, class_num)
     drbm.train(train, test, args.learning_num, args.minibatch_size, opt, calc_train_correct_rate=True)
     
     end_time = time.time()
