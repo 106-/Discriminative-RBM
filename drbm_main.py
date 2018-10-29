@@ -79,19 +79,19 @@ def main():
     logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d, div_num:%d"%(vector_size, hidden_unit_num, class_num, hidden_layer_value_num))
 
     initial_parameters = {
-        "weight_w": np.load("weight_w.npy"),
-        "weight_v": np.load("weight_v.npy"),
-        "bias_c": np.load("bias_c.npy"),
-        "bias_b": np.load("bias_b.npy"),
+        "weight_w": np.load("./datas/weight_w.npy"),
+        "weight_v": np.load("./datas/weight_v.npy"),
+        "bias_c": np.load("./datas/bias_c.npy"),
+        "bias_b": np.load("./datas/bias_b.npy"),
     }
 
     drbm = DRBM(vector_size, hidden_unit_num, class_num, hidden_layer_value_num, initial_parameter=initial_parameters)
     # drbm = DRBM(vector_size, hidden_unit_num, class_num, hidden_layer_value_num)
 
     logging.info("️start loading data.")
-    train = MNIST("mnist_train.npy", class_num)
-    #test = MNIST("mnist_test.npy", class_num)
-    test = normalized_MNIST("mnist_noise_test_d0.4.npy", class_num)
+    train = MNIST("./datas/mnist_train.npy", class_num)
+    #test = MNIST("./datas/mnist_test.npy", class_num)
+    test = normalized_MNIST("./datas/mnist_noise_test_d0.4.npy", class_num)
     logging.info("☑ loading data complete.")
 
     if args.datasize_limit != 0:
