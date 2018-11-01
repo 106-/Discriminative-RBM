@@ -92,7 +92,7 @@ class DRBM:
 
         self.grad = parameters(num_visible, num_hidden, num_class, randominit=False)
         if initial_parameter:
-            self.para = parameters(num_visible, num_hidden, num_class, initial_parameter=initial_parameter)
+            self.para = initial_parameter
         else:
             self.para = parameters(num_visible, num_hidden, num_class)
 
