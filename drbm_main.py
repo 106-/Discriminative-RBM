@@ -21,6 +21,8 @@ parser.add_argument("-l", "--datasize_limit", action="store", default=0, type=in
 parser.add_argument("-m", "--minibatch_size", action="store", default=100, type=int, help="minibatch size")
 parser.add_argument("-o", "--optimizer", action="store", default="adamax", type=str, help="optimizer")
 parser.add_argument("-t", "--train_correct_rate", action="store_true", help="calculate correct rate for training data or not")
+parser.add_argument("-k", "--kl_divergence", action="store", type=str, default=None, help="calculate kl-divergence from specified DRBM (json file)")
+parser.add_argument("-i", "--test_interval", action="store", type=int, default=100, help="interval to calculate ( test error | training error | KL-Divergence )")
 args = parser.parse_args()
 
 class LearningData:
@@ -94,6 +96,10 @@ def main():
     if args.datasize_limit != 0:
         settings.training_data = settings.training_data.restore_minibatch(args.datasize_limit, random=False)
 
+    gen_drbm_probs = None
+    if args.kl_divergence:
+        gen_drbm = DRBM.load_from_json(args.kl_divergence)
+
     opt = None
     if args.optimizer == "momentum":
         logging.info("optimize method: momentum")
@@ -108,7 +114,10 @@ def main():
     logging.info("train started.")
     start_time = time.time()
 
-    drbm.train(settings.training_data, settings.test_data, args.learning_num, args.minibatch_size, opt, calc_train_correct_rate=args.train_correct_rate)
+    drbm.train(settings.training_data, settings.test_data, args.learning_num, args.minibatch_size, opt, test_interval=args.test_interval,
+        calc_train_correct_rate=args.train_correct_rate,
+        gen_drbm=gen_drbm,
+    )
     
     end_time = time.time()
     logging.info("☑ train complete. time: {} sec".format(end_time-start_time))

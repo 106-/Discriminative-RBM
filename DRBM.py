@@ -151,7 +151,7 @@ class DRBM:
         return x+np.log( (1-np.exp(-2*x))/x )
 
     # 全クラス分/全データ分のA_jを計算(N,K,m)のサイズ
-    def _matrix_ok_A(self, input_vector):
+    def matrix_ok_A(self, input_vector):
         return self.para.bias_c + self.para.weight_w + np.dot(input_vector, self.para.weight_v)[:, np.newaxis, :]
 
     # データに対してのA_j (N,m)
@@ -187,7 +187,7 @@ class DRBM:
         q.put(diff_c)
         q.put(diff_v)
     
-    def train(self, training, test, learning_time, batch_size, optimizer, test_interval=100, dump_parameter=False, calc_train_correct_rate=False):
+    def train(self, training, test, learning_time, batch_size, optimizer, test_interval=100, dump_parameter=False, calc_train_correct_rate=False, gen_drbm=None):
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
             raise TypeError
@@ -212,10 +212,13 @@ class DRBM:
         if calc_train_correct_rate:
             train_correct_rate(training)
 
+        if gen_drbm is not None:
+            self.kl_divergence(gen_drbm)
+
         for lt in range(resume_time, learning_time):
             try:
                 batch = training.minibatch(batch_size)
-                self._A_matrix_ok = self._matrix_ok_A(batch.data)
+                self._A_matrix_ok = self.matrix_ok_A(batch.data)
                 self._A_matrix = self._matrix_A(batch.answer, batch.data)
                 self._probs_matrix = self.probability(self._A_matrix_ok)
                 self._sig_A_ok = self.vmarginal(self._A_matrix_ok)
@@ -248,6 +251,9 @@ class DRBM:
                     if calc_train_correct_rate:
                         train_correct_rate(training)
 
+                    if gen_drbm is not None:
+                        self.kl_divergence(gen_drbm)
+
                     if dump_parameter:
                         self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
                         logging.info("parameters are dumped.")
@@ -276,9 +282,12 @@ class DRBM:
         test_correct_rate(test)
         if calc_train_correct_rate:
             train_correct_rate(training)
+
+        if gen_drbm is not None:
+            self.kl_divergence(gen_drbm)
     
     def classify(self, input_data):
-        probs = self.probability(self._matrix_ok_A(input_data), normalize=False)
+        probs = self.probability(self.matrix_ok_A(input_data), normalize=False)
         return np.argmax(probs, axis=1)
     
     def test_error(self, test):
@@ -293,6 +302,22 @@ class DRBM:
             correct += np.sum( classified_data )
         correct_rate = correct / float(len(test.data))
         return correct_rate, correct
+
+    def kl_divergence(self, gen_drbm, sampling_num=1000):
+        logging.info("calclating KL-Divergence.")
+        random_value, gen_probs = gen_drbm.sampling(sampling_num)
+
+        a_matrix = self.matrix_ok_A(random_value)
+        probs = self.probability(a_matrix)
+
+        kld = np.sum( gen_probs * np.log( gen_probs / probs ), axis=1 )
+        logging.info("KL-Divergence mean: {}".format(np.mean(kld)))
+
+    def sampling(self, sampling_num):
+        random_value = np.random.randn(sampling_num, self.num_visible)
+        a_matrix = self.matrix_ok_A(random_value)
+        probs = self.probability(a_matrix)
+        return random_value, probs
 
     def save(self, filename, training_progress=None):
         params = {
