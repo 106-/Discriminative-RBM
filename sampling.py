@@ -36,10 +36,18 @@ def main():
     split_num = np.ceil( args.sampling_num /10000 )
     splitted_datas = np.array_split(random_data, split_num, axis=0)
     for d in splitted_datas:
+        a_matrix = drbm.matrix_ok_A(d)
+        probs = drbm.probability(a_matrix)
+        np.cumsum(probs, axis=1, out=probs)
+        uniform_dist = np.random.rand(len(d),1)
+        np.subtract(probs, uniform_dist, out=probs)
+        np.less(0, probs, out=probs)
+        random_class = np.argmax(probs, axis=1)
+
         if answers is not None:
-            answers = np.hstack((answers, drbm.classify(d)))
+            answers = np.hstack((answers, random_class))
         else:
-            answers = drbm.classify(d)
+            answers = random_class
     
     output = np.concatenate((answers[:, np.newaxis], random_data), axis=1)
 
