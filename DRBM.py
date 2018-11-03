@@ -188,32 +188,42 @@ class DRBM:
         q.put(diff_v)
     
     def train(self, training, test, learning_time, batch_size, optimizer, test_interval=100, dump_parameter=False, calc_train_correct_rate=False, gen_drbm=None):
+
+        learning_result = LearningResult(learning_time, optimizer.__class__.__name__, len(training.data), len(test.data), batch_size, self)
+
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
             raise TypeError
         
         resume_time = 0
 
-        def train_correct_rate(train):
+        def train_correct_rate(lt, train):
             correct_rate, correct = self.test_error(train)
-            logging.info("️train correct rate: {} ({} / {})".format( correct_rate, correct, len(train.data) ))
+            logging.info("️train correct rate: {} ({} / {})".format( correct_rate, correct, len(train.data)))
+            learning_result.make_log(lt, "train-correct-rate", correct_rate)
 
-        def test_correct_rate(test):
+        def test_correct_rate(lt, test):
             correct_rate, correct = self.test_error(test)
-            logging.info("️test correct rate: {} ({} / {})".format( correct_rate, correct, len(test.data) ))
+            logging.info("️test correct rate: {} ({} / {})".format( correct_rate, correct, len(test.data)))
+            learning_result.make_log(lt, "test-correct-rate", correct_rate)
+
+        def calc_kld(lt):
+            kld_mean = self.kl_divergence(gen_drbm)
+            logging.info("KL-Divergence mean: {}".format(kld_mean))
+            learning_result.make_log(lt, "KL-Divergence", kld_mean)
 
         if not self.resume == None:
             resume_time = self.resume[0]
             learning_time = self.resume[1]
 
         logging.info("calculating initial correct rate.")
-        test_correct_rate(test)
+        test_correct_rate(0, test)
 
         if calc_train_correct_rate:
-            train_correct_rate(training)
+            train_correct_rate(0, training)
 
         if gen_drbm is not None:
-            self.kl_divergence(gen_drbm)
+            calc_kld(0)
 
         for lt in range(resume_time, learning_time):
             try:
@@ -247,12 +257,12 @@ class DRBM:
                 self.para.weight_v += diff.weight_v
 
                 if lt % test_interval == 0 and lt!=0:
-                    test_correct_rate(test)
+                    test_correct_rate(lt, test)
                     if calc_train_correct_rate:
-                        train_correct_rate(training)
+                        train_correct_rate(lt, training)
 
                     if gen_drbm is not None:
-                        self.kl_divergence(gen_drbm)
+                        calc_kld(lt)
 
                     if dump_parameter:
                         self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
@@ -279,12 +289,15 @@ class DRBM:
                 exit()
 
         logging.info("calculating final correct rate.")
-        test_correct_rate(test)
+        test_correct_rate(lt, test)
         if calc_train_correct_rate:
-            train_correct_rate(training)
+            train_correct_rate(lt, training)
 
         if gen_drbm is not None:
-            self.kl_divergence(gen_drbm)
+            calc_kld(lt)
+    
+        now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        learning_result.save("log_{}_d{}v{}h{}c{}.json".format(now, self.div_num, self.num_visible, self.num_hidden, self.num_class))
     
     def classify(self, input_data):
         probs = self.probability(self.matrix_ok_A(input_data), normalize=False)
@@ -311,7 +324,8 @@ class DRBM:
         probs = self.probability(a_matrix)
 
         kld = np.sum( gen_probs * np.log( gen_probs / probs ), axis=1 )
-        logging.info("KL-Divergence mean: {}".format(np.mean(kld)))
+        kld_mean = np.mean(kld)
+        return kld_mean
 
     def sampling(self, sampling_num):
         random_value = np.random.randn(sampling_num, self.num_visible)
@@ -325,10 +339,10 @@ class DRBM:
             "num_class":self.num_class,
             "num_hidden":self.num_hidden,
             "num_visible":self.num_visible,
-            "bias_b":self.para.bias_b.tolist(),
-            "bias_c":self.para.bias_c.tolist(),
-            "weight_w":self.para.weight_w.tolist(),
-            "weight_v":self.para.weight_v.tolist(),
+            # "bias_b":self.para.bias_b.tolist(),
+            # "bias_c":self.para.bias_c.tolist(),
+            # "weight_w":self.para.weight_w.tolist(),
+            # "weight_v":self.para.weight_v.tolist(),
             "div_num":self.div_num,
         }
         if not training_progress == None:
@@ -353,3 +367,33 @@ def main():
 
 if __name__=='__main__':
     main()
+
+class LearningResult:
+    def __init__(self, learning_num, optimize_method, train_data_length, test_data_length, batch_size, drbm):
+        self.testament = {
+            "learning_num" : learning_num,
+            "optimize_method" : optimize_method,
+            "train_data_length" : train_data_length,
+            "test_data_length" : test_data_length,
+            "batch_size" : batch_size,
+            "DRBM" : {
+                "num_class":drbm.num_class,
+                "num_hidden":drbm.num_hidden,
+                "num_visible":drbm.num_visible,
+                "bias_b":drbm.para.bias_b.tolist(),
+                "bias_c":drbm.para.bias_c.tolist(),
+                "weight_w":drbm.para.weight_w.tolist(),
+                "weight_v":drbm.para.weight_v.tolist(),
+                "div_num":drbm.div_num
+            },
+            "log":{}
+        }
+    
+    def make_log(self, learning_count, value_name, value):
+        pass
+        if not value_name in self.testament["log"]:
+            self.testament["log"][value_name] = []
+        self.testament["log"][value_name].append( [learning_count, value] )
+    
+    def save(self, filename):
+        json.dump(self.testament, open(filename, "w+"))
