@@ -297,7 +297,7 @@ class DRBM:
             calc_kld(lt)
     
         now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        learning_result.save("log_{}_d{}v{}h{}c{}.json".format(now, self.div_num, self.num_visible, self.num_hidden, self.num_class))
+        learning_result.save("./results/log_{}_d{}v{}h{}c{}.json".format(now, self.div_num, self.num_visible, self.num_hidden, self.num_class))
     
     def classify(self, input_data):
         probs = self.probability(self.matrix_ok_A(input_data), normalize=False)
@@ -339,10 +339,10 @@ class DRBM:
             "num_class":self.num_class,
             "num_hidden":self.num_hidden,
             "num_visible":self.num_visible,
-            # "bias_b":self.para.bias_b.tolist(),
-            # "bias_c":self.para.bias_c.tolist(),
-            # "weight_w":self.para.weight_w.tolist(),
-            # "weight_v":self.para.weight_v.tolist(),
+            "bias_b":self.para.bias_b.tolist(),
+            "bias_c":self.para.bias_c.tolist(),
+            "weight_w":self.para.weight_w.tolist(),
+            "weight_v":self.para.weight_v.tolist(),
             "div_num":self.div_num,
         }
         if not training_progress == None:
@@ -380,10 +380,10 @@ class LearningResult:
                 "num_class":drbm.num_class,
                 "num_hidden":drbm.num_hidden,
                 "num_visible":drbm.num_visible,
-                "bias_b":drbm.para.bias_b.tolist(),
-                "bias_c":drbm.para.bias_c.tolist(),
-                "weight_w":drbm.para.weight_w.tolist(),
-                "weight_v":drbm.para.weight_v.tolist(),
+                # "bias_b":drbm.para.bias_b.tolist(),
+                # "bias_c":drbm.para.bias_c.tolist(),
+                # "weight_w":drbm.para.weight_w.tolist(),
+                # "weight_v":drbm.para.weight_v.tolist(),
                 "div_num":drbm.div_num
             },
             "log":{}
