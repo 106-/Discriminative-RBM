@@ -9,6 +9,8 @@ import numpy as np
 import logging
 import argparse
 import json
+import os
+import datetime
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
 np.seterr(over="raise", invalid="raise")
@@ -23,6 +25,7 @@ parser.add_argument("-o", "--optimizer", action="store", default="adamax", type=
 parser.add_argument("-t", "--train_correct_rate", action="store_true", help="calculate correct rate for training data or not")
 parser.add_argument("-k", "--kl_divergence", action="store", type=str, default=None, help="calculate kl-divergence from specified DRBM (json file)")
 parser.add_argument("-i", "--test_interval", action="store", type=int, default=100, help="interval to calculate ( test error | training error | KL-Divergence )")
+parser.add_argument("-d", "--result_directory", action="store", type=str, default="./results/", help="directory to output learning result file.")
 args = parser.parse_args()
 
 class LearningData:
@@ -114,7 +117,7 @@ def main():
     logging.info("train started.")
     start_time = time.time()
 
-    drbm.train(settings.training_data, settings.test_data, args.learning_num, args.minibatch_size, opt, test_interval=args.test_interval,
+    learning_result = drbm.train(settings.training_data, settings.test_data, args.learning_num, args.minibatch_size, opt, test_interval=args.test_interval,
         calc_train_correct_rate=args.train_correct_rate,
         gen_drbm=gen_drbm,
     )
@@ -122,7 +125,11 @@ def main():
     end_time = time.time()
     logging.info("☑ train complete. time: {} sec".format(end_time-start_time))
 
-    drbm.save("parameters.json")
+    now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename_template = "{}_d{}v{}h{}c{}_%s.json".format(now, drbm.div_num, drbm.num_visible, drbm.num_hidden, drbm.num_class)
+    learning_result.save(os.path.join(args.result_directory, filename_template%"log"))
+
+    drbm.save( os.path.join(args.result_directory, filename_template%"params"))
     logging.info("☑ parameters dumped.")
 
 

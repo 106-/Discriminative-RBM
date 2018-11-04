@@ -189,7 +189,7 @@ class DRBM:
     
     def train(self, training, test, learning_time, batch_size, optimizer, test_interval=100, dump_parameter=False, calc_train_correct_rate=False, gen_drbm=None):
 
-        learning_result = LearningResult(learning_time, optimizer.__class__.__name__, len(training.data), len(test.data), batch_size, self)
+        learning_result = LearningResult(learning_time, optimizer.__class__.__name__, len(training.data), len(test.data), batch_size, test_interval, self)
 
         if not (self.num_visible == len(training.data[0])):
             print(len(training.data[0]))
@@ -296,8 +296,7 @@ class DRBM:
         if gen_drbm is not None:
             calc_kld(lt)
     
-        now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        learning_result.save("./results/log_{}_d{}v{}h{}c{}.json".format(now, self.div_num, self.num_visible, self.num_hidden, self.num_class))
+        return learning_result
     
     def classify(self, input_data):
         probs = self.probability(self.matrix_ok_A(input_data), normalize=False)
@@ -369,13 +368,14 @@ if __name__=='__main__':
     main()
 
 class LearningResult:
-    def __init__(self, learning_num, optimize_method, train_data_length, test_data_length, batch_size, drbm):
+    def __init__(self, learning_num, optimize_method, train_data_length, test_data_length, batch_size, test_interval, drbm):
         self.testament = {
             "learning_num" : learning_num,
             "optimize_method" : optimize_method,
             "train_data_length" : train_data_length,
             "test_data_length" : test_data_length,
             "batch_size" : batch_size,
+            "test_interval" : test_interval,
             "DRBM" : {
                 "num_class":drbm.num_class,
                 "num_hidden":drbm.num_hidden,
