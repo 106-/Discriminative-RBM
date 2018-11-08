@@ -14,19 +14,22 @@ import datetime
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
 np.seterr(over="raise", invalid="raise")
+args = None
 
-parser = argparse.ArgumentParser(description="DRBM learning script")
-parser.add_argument("learning_num", action="store", type=int, help="number of updating parameters")
-parser.add_argument("division_num", action="store", type=int, help="number of dividing middle layer")
-parser.add_argument("train_setting_file", action="store", type=str, help="json file which settings parameters")
-parser.add_argument("-l", "--datasize_limit", action="store", default=0, type=int, help="limit data size")
-parser.add_argument("-m", "--minibatch_size", action="store", default=100, type=int, help="minibatch size")
-parser.add_argument("-o", "--optimizer", action="store", default="adamax", type=str, help="optimizer")
-parser.add_argument("-t", "--train_correct_rate", action="store_true", help="calculate correct rate for training data or not")
-parser.add_argument("-k", "--kl_divergence", action="store", type=str, default=None, help="calculate kl-divergence from specified DRBM (json file)")
-parser.add_argument("-i", "--test_interval", action="store", type=int, default=100, help="interval to calculate ( test error | training error | KL-Divergence )")
-parser.add_argument("-d", "--result_directory", action="store", type=str, default="./results/", help="directory to output learning result file.")
-args = parser.parse_args()
+def arg_setting():
+    global args
+    parser = argparse.ArgumentParser(description="DRBM learning script")
+    parser.add_argument("learning_num", action="store", type=int, help="number of updating parameters")
+    parser.add_argument("division_num", action="store", type=int, help="number of dividing middle layer")
+    parser.add_argument("train_setting_file", action="store", type=str, help="json file which settings parameters")
+    parser.add_argument("-l", "--datasize_limit", action="store", default=0, type=int, help="limit data size")
+    parser.add_argument("-m", "--minibatch_size", action="store", default=100, type=int, help="minibatch size")
+    parser.add_argument("-o", "--optimizer", action="store", default="adamax", type=str, help="optimizer")
+    parser.add_argument("-t", "--train_correct_rate", action="store_true", help="calculate correct rate for training data or not")
+    parser.add_argument("-k", "--kl_divergence", action="store", type=str, default=None, help="calculate kl-divergence from specified DRBM (json file)")
+    parser.add_argument("-i", "--test_interval", action="store", type=int, default=100, help="interval to calculate ( test error | training error | KL-Divergence )")
+    parser.add_argument("-d", "--result_directory", action="store", type=str, default="./results/", help="directory to output learning result file.")
+    args = parser.parse_args()
 
 class LearningData:
     def __init__(self, data, answer):
@@ -54,13 +57,31 @@ class LearningData:
         batch_data = self.data[idx]
         batch_answer = self.answer[idx]
         return LearningData(batch_data, batch_answer)
+    
+    def normalize(self, mu=None, sigma=None):
+        if mu is None:
+            mu = np.mean(self.data, axis=0)
+        if sigma is None:
+            sigma = np.std(self.data, axis=0)
+            sigma[sigma == 0] = 1
+        self.data = (self.data - mu) / sigma
+        np.clip(self.data, -4, 4, out=self.data)
+        return mu, sigma
+    
+    def normalize_255(self):
+        self.data /= 255
 
 class MNIST(LearningData):
     def __init__(self, filename, num_class):
         array = np.load(filename)
-        answer, data = np.split(array, [1], axis=1)
-        answer = np.eye(num_class)[answer.astype("int64").flatten().tolist()]
+        self.answer_origin, data = np.split(array, [1], axis=1)
+        data = data.astype("float64")
+        answer = np.eye(num_class)[self.answer_origin.astype("int64").flatten().tolist()]
         super(MNIST, self).__init__(data, answer)
+    
+    def save(self, filename):
+        stacked = np.hstack((self.answer_origin, self.data))
+        np.save(filename, stacked)
     
 class LearningDataSettings:
     def __init__(self, filename):
@@ -71,6 +92,11 @@ class LearningDataSettings:
             self.class_unit = json_setting["class-unit"]
             self.training_data = MNIST(json_setting["training-data"], self.class_unit)
             self.test_data = MNIST(json_setting["test-data"], self.class_unit)
+            if json_setting["needs-normalize"]:
+                mu, sigma = self.training_data.normalize()
+                self.test_data.normalize(mu=mu, sigma=sigma)
+                # self.training_data.normalize_255()
+                # self.test_data.normalize_255()
             if "initial-parameters" in json_setting:
                 params = {
                     "weight_w": np.load(json_setting["initial-parameters"]["weight_w"]),
@@ -99,7 +125,7 @@ def main():
     if args.datasize_limit != 0:
         settings.training_data = settings.training_data.restore_minibatch(args.datasize_limit, random=False)
 
-    gen_drbm_probs = None
+    gen_drbm = None
     if args.kl_divergence:
         gen_drbm = DRBM.load_from_json(args.kl_divergence)
 
@@ -134,4 +160,5 @@ def main():
 
 
 if __name__=='__main__':
+    arg_setting()
     main()

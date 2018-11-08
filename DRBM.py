@@ -18,7 +18,7 @@ class parameters:
         self.num_hidden = num_hidden
         self.num_class = num_class
 
-        if randominit:
+        if randominit and not initial_parameter :
             # Xavierの初期値
             sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
             self.weight_v = sq_node * np.random.randn(num_visible, num_hidden)
@@ -74,12 +74,12 @@ class parameters:
         return self.map(np.fabs)
     
     # 2つのパラメータを比較して,大きいほうのみを抽出する関数
-    def max(para_a, para_b):
-        res = parameters(para_a.num_visible, para_a.num_hidden, para_a.num_class, randominit=False)
-        np.max( np.concatenate((para_a.bias_b[np.newaxis, :], para_b.bias_b[np.newaxis, :]), axis=0), axis=0, out=res.bias_b )
-        np.max( np.concatenate((para_a.bias_c[np.newaxis, :], para_b.bias_c[np.newaxis, :]), axis=0), axis=0, out=res.bias_c )
-        np.max( np.concatenate((para_a.weight_w[np.newaxis, :, :], para_b.weight_w[np.newaxis, :, :]), axis=0), axis=0, out=res.weight_w )
-        np.max( np.concatenate((para_a.weight_v[np.newaxis, :, :], para_b.weight_v[np.newaxis, :, :]), axis=0), axis=0, out=res.weight_v )
+    def max(self, para_b):
+        res = parameters(self.num_visible, self.num_hidden, self.num_class, randominit=False)
+        np.max( np.concatenate((self.bias_b[np.newaxis, :], para_b.bias_b[np.newaxis, :]), axis=0), axis=0, out=res.bias_b )
+        np.max( np.concatenate((self.bias_c[np.newaxis, :], para_b.bias_c[np.newaxis, :]), axis=0), axis=0, out=res.bias_c )
+        np.max( np.concatenate((self.weight_w[np.newaxis, :, :], para_b.weight_w[np.newaxis, :, :]), axis=0), axis=0, out=res.weight_w )
+        np.max( np.concatenate((self.weight_v[np.newaxis, :, :], para_b.weight_v[np.newaxis, :, :]), axis=0), axis=0, out=res.weight_v )
         return res
 
 class DRBM:
@@ -358,14 +358,6 @@ class DRBM:
         drbm.para.weight_v = np.array(params["weight_v"])
         drbm.resume = params["training_progress"]
         return drbm
-
-def main():
-    drbm = DRBM(3, 5, 7)
-    print(a)
-    print(sum(a))
-
-if __name__=='__main__':
-    main()
 
 class LearningResult:
     def __init__(self, learning_num, optimize_method, train_data_length, test_data_length, batch_size, test_interval, drbm):

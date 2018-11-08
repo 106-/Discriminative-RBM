@@ -46,7 +46,7 @@ class DataSeries:
     def train_epoch_range(self):
         first_log = self.logs[0]
         epoch_num = first_log["learning_num"] * first_log["batch_size"] / first_log["train_data_length"]
-        test_interval_epoch = first_log["test_interval"] / first_log["learning_num"] * first_log["batch_size"]
+        test_interval_epoch = first_log["test_interval"] / (first_log["train_data_length"] / first_log["batch_size"])
         return np.arange(0, epoch_num+test_interval_epoch, test_interval_epoch)
 
 def main():
