@@ -20,11 +20,13 @@ class parameters:
 
         if randominit and not initial_parameter :
             # Xavierの初期値
-            sq_node = 1 / math.sqrt(max(num_visible, num_hidden, num_class))
-            self.weight_v = sq_node * np.random.randn(num_visible, num_hidden)
-            self.weight_w = sq_node * np.random.randn(num_class, num_hidden)  
-            self.bias_c = sq_node * np.random.randn(num_hidden)
-            self.bias_b = sq_node * np.random.randn(num_class)
+            uniform_range = np.sqrt( 6/(num_visible + num_hidden) )
+            self.weight_v = np.random.uniform(-uniform_range, uniform_range, (num_visible, num_hidden))
+            uniform_range = np.sqrt( 6/(num_hidden + num_class) )
+            self.weight_w = np.random.uniform(-uniform_range, uniform_range, (num_class, num_hidden))
+            # バイアスは0で初期化
+            self.bias_c = np.zeros(num_hidden)
+            self.bias_b = np.zeros(num_class)
         elif initial_parameter:
             self.weight_w = initial_parameter["weight_w"]
             self.weight_v = initial_parameter["weight_v"]
