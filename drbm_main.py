@@ -93,10 +93,10 @@ class LearningDataSettings:
             self.training_data = MNIST(json_setting["training-data"], self.class_unit)
             self.test_data = MNIST(json_setting["test-data"], self.class_unit)
             if json_setting["needs-normalize"]:
-                mu, sigma = self.training_data.normalize()
-                self.test_data.normalize(mu=mu, sigma=sigma)
-                # self.training_data.normalize_255()
-                # self.test_data.normalize_255()
+                # mu, sigma = self.training_data.normalize()
+                # self.test_data.normalize(mu=mu, sigma=sigma)
+                self.training_data.normalize_255()
+                self.test_data.normalize_255()
             if "initial-parameters" in json_setting:
                 params = {
                     "weight_w": np.load(json_setting["initial-parameters"]["weight_w"]),

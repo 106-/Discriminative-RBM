@@ -5,7 +5,7 @@ if [ $# -ne 2 ]; then
   exit 1
 fi
 
-DIR="./results/"`date +%Y-%m-%d_%H-%M-%S`"_d$1_$2"
+DIR="./results/"`date +%Y-%m-%d_%H-%M-%S`"_d$1_$2_sampling"
 mkdir -p $DIR
 
 for i in `seq $2`

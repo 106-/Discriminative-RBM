@@ -3,34 +3,21 @@
 
 import argparse
 import numpy as np
+from drbm_main import MNIST
+# import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser("")
-parser.add_argument("-m", "--mean", action="store", type=float, help="mean of noise")
-parser.add_argument("-d", "--deviation", action="store", type=float, help="deviation of noise")
+parser.add_argument("deviation", action="store", type=float, help="deviation of noise")
 args = parser.parse_args()
 
 def main():
-    #train = np.load("mnist_train.npy")
-    test = np.load("mnist_test.npy")
-    #train_answer, train_data = np.split(train.astype("float64"), [1], axis=1)
-    #train_data /= 255
-    test_answer, test_data = np.split(test.astype("float64"), [1], axis=1)
-    test_data /= 255
-
-    mean = args.mean
+    test = MNIST("./datas/mnist_test.npy", 10)
     dev = args.deviation
-
-    #train_data += np.random.normal(mean, dev, train_data.shape)
-    test_data += np.random.normal(mean, dev, test_data.shape)
-
-    #train_data = np.clip(train_data, 0, 1)
-    test_data = np.clip(test_data, 0, 1)
-
-    #noised_train = np.hstack((train_answer, train_data))
-    noised_test= np.hstack((test_answer, test_data))
-
-    #np.save("mnist_noise_train", noised_train)
-    np.save("mnist_noise_test", noised_test)
+    np.add(test.data, np.random.normal(0, dev, test.data.shape), out=test.data)
+    np.clip(test.data, 0, 255, out=test.data)
+    # plt.hist(test.data[0], bins=255)
+    # plt.show()
+    test.save("./datas/mnist_noise_test_d{}".format(dev))
 
 if __name__=='__main__':
     main()
