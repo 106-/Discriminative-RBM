@@ -111,6 +111,13 @@ class DRBM:
             self._div_factor = 2.0 / (self.div_num-1)
             self.vmarginal_prob = self._marginal_prob
             self.vmarginal = self._marginal
+            self._marginal_prob_funcs = [
+                lambda x: -x + np.log( (1-np.exp(self._div_factor * self.div_num * x)) / (1-np.exp(self._div_factor * x)) ),
+                lambda x: -x + np.log( (np.exp(- self._div_factor * self.div_num * x)-1)/(np.exp(- self._div_factor * self.div_num * x) - np.exp(self._div_factor * x * (1-self.div_num))) ), 
+                lambda x: -x + np.log( self.div_num + 0.5 * self._div_factor * (self.div_num-1) * self.div_num * x
+                            + (1/12) * self._div_factor**2 * self.div_num * (2 * self.div_num**2 - 3 * self.div_num + 1) * x**2
+                            + (1/24) * self._div_factor**3 * (self.div_num-1)**2 * self.div_num**2 * x**3)
+            ]
 
         self.resume = None
 
@@ -131,19 +138,7 @@ class DRBM:
     def _minus_sigmoid(self, x):
         return np.piecewise(x, [x>0], [lambda x: 1 / (np.exp(-x)-1), lambda x: -1/(np.exp(x)-1)-1])
     def _marginal_prob(self, x):
-        return np.piecewise(x,
-            [
-                x < -1e-3,
-                1e-3 < x
-            ], 
-            [
-                lambda x: -x + np.log( (1-np.exp(self._div_factor * self.div_num * x)) / (1-np.exp(self._div_factor * x)) ),
-                lambda x: -x + np.log( (np.exp(- self._div_factor * self.div_num * x)-1)/(np.exp(- self._div_factor * self.div_num * x) - np.exp(self._div_factor * x * (1-self.div_num))) ), 
-                lambda x: -x + np.log( self.div_num + 0.5 * self._div_factor * (self.div_num-1) * self.div_num * x
-                            + (1/12) * self._div_factor**2 * self.div_num * (2 * self.div_num**2 - 3 * self.div_num + 1) * x**2
-                            + (1/24) * self._div_factor**3 * (self.div_num-1)**2 * self.div_num**2 * x**3)
-            ]
-        )
+        return np.piecewise(x, [ x < -1e-3, 1e-3 < x ], self._marginal_prob_funcs)
     
     def _marginal_inf(self, x):
         return (1 / np.tanh(x)) - (1/x)
