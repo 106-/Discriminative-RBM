@@ -81,7 +81,10 @@ def main():
         plot_datas.append(values)
 
     mpl.rcParams["font.family"] = "IPAPGothic"
-    fig, axes = plt.subplots(nrows=1, ncols=len(plot_datas), figsize=(12,7))
+    mpl.rcParams["font.size"] = 20
+    fig, axes = plt.subplots(nrows=1, ncols=len(plot_datas), figsize=(8,4))
+
+    fig.subplots_adjust(wspace=0.3)
 
     if len(plot_datas) == 1:
         axes = np.array(axes)
@@ -93,7 +96,7 @@ def main():
         ax.set_xlabel(plot["xlabel"])
         ax.set_ylabel(plot["ylabel"])
         for data_type, data in zip(settings["data-types"], plot_data):
-            ax.plot(plot_count, data, label=data_type["name"])
+            ax.plot(plot_count, data, label=data_type["name"], linewidth=4.0)
         ax.legend()
         ax.grid(True)
     plt.show()
