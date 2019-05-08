@@ -9,6 +9,7 @@ import logging
 import datetime
 import traceback
 from multiprocessing import Pool
+from marginal_functions import *
 import multiprocessing as mp
 
 
@@ -100,52 +101,14 @@ class DRBM:
 
         # div_numが1のときは従来のDRBM
         if self.div_num == 1:
-            self._log1p_funclist = [self._log1p_exp_high, self._log1p_exp_low]
-            self.vmarginal_prob = self._log1p_exp
-            self.vmarginal = self._sigmoid
+            self.marginal = original()
         # 0のときはDRBM(∞)
         elif self.div_num == 0:
-            self.vmarginal_prob = self._marginal_inf_prob
-            self.vmarginal = self._marginal_inf
+            self.marginal = multiple_continuous()
         else:
-            self._div_factor = 2.0 / (self.div_num-1)
-            self.vmarginal_prob = self._marginal_prob
-            self.vmarginal = self._marginal
-            self._marginal_prob_funcs = [
-                lambda x: -x + np.log( (1-np.exp(self._div_factor * self.div_num * x)) / (1-np.exp(self._div_factor * x)) ),
-                lambda x: -x + np.log( (np.exp(- self._div_factor * self.div_num * x)-1)/(np.exp(- self._div_factor * self.div_num * x) - np.exp(self._div_factor * x * (1-self.div_num))) ), 
-                lambda x: -x + np.log( self.div_num + 0.5 * self._div_factor * (self.div_num-1) * self.div_num * x
-                            + (1/12) * self._div_factor**2 * self.div_num * (2 * self.div_num**2 - 3 * self.div_num + 1) * x**2
-                            + (1/24) * self._div_factor**3 * (self.div_num-1)**2 * self.div_num**2 * x**3)
-            ]
+            self.marginal = multiple_discrete(div_num)
 
         self.resume = None
-
-    # 以下は周辺化の関数 匿名関数にするとプロセス分けできないのでこうなっている
-    def _sigmoid(self, x):
-        return 1/(1+np.exp(-x))
-    def _log1p_exp(self, x):
-        return np.piecewise(x, [x>0], self._log1p_funclist)
-    def _log1p_exp_high(self, x):
-        return x+np.log1p(np.exp(-x))
-    def _log1p_exp_low(self, x):
-        return np.log1p( np.exp(x))
-    
-    def _marginal(self, x):
-        return np.piecewise(x, [x!=0], [self._marginal_nzero, 0])
-    def _marginal_nzero(self, x):
-        return -1 + self._div_factor * ( self._minus_sigmoid(self._div_factor * x) - self._minus_sigmoid( self._div_factor * self.div_num * x ) * self.div_num )
-    def _minus_sigmoid(self, x):
-        return np.piecewise(x, [x>0], [lambda x: 1 / (np.exp(-x)-1), lambda x: -1/(np.exp(x)-1)-1])
-    def _marginal_prob(self, x):
-        return np.piecewise(x, [ x < -1e-3, 1e-3 < x ], self._marginal_prob_funcs)
-    
-    def _marginal_inf(self, x):
-        return (1 / np.tanh(x)) - (1/x)
-    def _marginal_inf_prob(self, x):
-        return np.piecewise(np.fabs(x), [x!=0], [self._marginal_inf_prob_nzero, np.log(2)])
-    def _marginal_inf_prob_nzero(self, x):
-        return x+np.log( (1-np.exp(-2*x))/x )
 
     # 全クラス分/全データ分のA_jを計算(N,K,m)のサイズ
     def matrix_ok_A(self, input_vector):
@@ -157,7 +120,7 @@ class DRBM:
 
     # N個のデータに対して(N,K)の確率の行列を返す
     def probability(self, A_matrix, normalize=True):
-        energies = self.para.bias_b + np.sum( self.vmarginal_prob(A_matrix) , axis=2)
+        energies = self.para.bias_b + np.sum( self.marginal.act(A_matrix) , axis=2)
 
         if normalize:
             # それぞれのクラスの中から一番大きいものを引く
@@ -228,8 +191,8 @@ class DRBM:
                 self._A_matrix_ok = self.matrix_ok_A(batch.data)
                 self._A_matrix = self._matrix_A(batch.answer, batch.data)
                 self._probs_matrix = self.probability(self._A_matrix_ok)
-                self._sig_A_ok = self.vmarginal(self._A_matrix_ok)
-                self._sig_A = self.vmarginal(self._A_matrix)
+                self._sig_A_ok = self.marginal.diff(self._A_matrix_ok)
+                self._sig_A = self.marginal.diff(self._A_matrix)
 
                 q = [mp.Queue() for i in range(2)]
                 # self._differential_bw(q[0], batch)
