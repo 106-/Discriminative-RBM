@@ -29,6 +29,7 @@ def arg_setting():
     parser.add_argument("-k", "--kl_divergence", action="store", type=str, default=None, help="calculate kl-divergence from specified DRBM (json file)")
     parser.add_argument("-i", "--test_interval", action="store", type=int, default=100, help="interval to calculate ( test error | training error | KL-Divergence )")
     parser.add_argument("-d", "--result_directory", action="store", type=str, default="./results/", help="directory to output learning result file.")
+    parser.add_argument("-s", "--sparse", action="store_true", help="enable sparse normalization or not")
     args = parser.parse_args()
 
 class LearningData:

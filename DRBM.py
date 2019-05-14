@@ -87,11 +87,12 @@ class parameters:
 
 class DRBM:
 
-    def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None):
+    def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None, enable_sparse=False):
         self.num_visible = num_visible
         self.num_hidden = num_hidden
         self.num_class = num_class
         self.div_num = div_num
+        self.enable_sparse = enable_sparse
 
         self.grad = parameters(num_visible, num_hidden, num_class, randominit=False)
         if initial_parameter:
@@ -99,8 +100,10 @@ class DRBM:
         else:
             self.para = parameters(num_visible, num_hidden, num_class)
 
+        if sparse_continuous:
+            self.marginal = sparse_continuous(num_hidden)
         # div_numが1のときは従来のDRBM
-        if self.div_num == 1:
+        elif self.div_num == 1:
             self.marginal = original()
         # 0のときはDRBM(∞)
         elif self.div_num == 0:
@@ -193,6 +196,9 @@ class DRBM:
                 self._probs_matrix = self.probability(self._A_matrix_ok)
                 self._sig_A_ok = self.marginal.diff(self._A_matrix_ok)
                 self._sig_A = self.marginal.diff(self._A_matrix)
+
+                if self.enable_sparse:
+                    self.marginal.fit_lambda(self._A_matrix, self._A_matrix_ok, self._probs_matrix)
 
                 q = [mp.Queue() for i in range(2)]
                 # self._differential_bw(q[0], batch)
@@ -303,6 +309,7 @@ class DRBM:
             "weight_w":self.para.weight_w.tolist(),
             "weight_v":self.para.weight_v.tolist(),
             "div_num":self.div_num,
+            "enable_sparse":self.enable_sparse,
         }
         if not training_progress == None:
             params["training_progress"] = training_progress
@@ -336,7 +343,8 @@ class LearningResult:
                 # "bias_c":drbm.para.bias_c.tolist(),
                 # "weight_w":drbm.para.weight_w.tolist(),
                 # "weight_v":drbm.para.weight_v.tolist(),
-                "div_num":drbm.div_num
+                "div_num":drbm.div_num,
+                "enable_sparse": drbm.enable_sparse,
             },
             "log":{}
         }
