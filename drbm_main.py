@@ -121,7 +121,7 @@ def main():
 
     logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d, div_num:%d"%(vector_size, hidden_unit_num, class_num, hidden_layer_value_num))
 
-    drbm = DRBM(vector_size, hidden_unit_num, class_num, hidden_layer_value_num, initial_parameter=settings.initial_parameters)
+    drbm = DRBM(vector_size, hidden_unit_num, class_num, hidden_layer_value_num, initial_parameter=settings.initial_parameters, enable_sparse=args.sparse)
 
     if args.datasize_limit != 0:
         settings.training_data = settings.training_data.restore_minibatch(args.datasize_limit, random=False)
@@ -153,7 +153,8 @@ def main():
     logging.info("☑ train complete. time: {} sec".format(end_time-start_time))
 
     now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    filename_template = "{}_d{}v{}h{}c{}_%s.json".format(now, drbm.div_num, drbm.num_visible, drbm.num_hidden, drbm.num_class)
+    hidden_layer = "s" if args.sparse else "d"
+    filename_template = "{}_{}{}_v{}h{}c{}_%s.json".format(now, hidden_layer, drbm.div_num, drbm.num_visible, drbm.num_hidden, drbm.num_class)
     learning_result.save(os.path.join(args.result_directory, filename_template%"log"))
 
     drbm.save( os.path.join(args.result_directory, filename_template%"params"))

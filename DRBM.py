@@ -100,7 +100,8 @@ class DRBM:
         else:
             self.para = parameters(num_visible, num_hidden, num_class)
 
-        if sparse_continuous:
+        if self.enable_sparse:
+            logging.info("enable sparse normalization for hidden layer.")
             self.marginal = sparse_continuous(num_hidden)
         # div_numが1のときは従来のDRBM
         elif self.div_num == 1:
