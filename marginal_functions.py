@@ -57,7 +57,7 @@ class multiple_continuous:
         ])
 
 class sparse_continuous:
-    def __init__(self, hidden_num, lambda_vector=None, initial_lambda=4.0):
+    def __init__(self, hidden_num, lambda_vector=None, initial_lambda=10.0):
         if lambda_vector is None:
             self.lambda_vector = np.full(hidden_num, initial_lambda)
         else:
