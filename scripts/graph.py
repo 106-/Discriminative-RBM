@@ -12,6 +12,7 @@ import json
 parser = argparse.ArgumentParser(description="make average graph from log file")
 parser.add_argument("directory", action="store", type=str, help="set directory of log file")
 parser.add_argument("setting_file", action="store", type=str, help="specify setting file")
+parser.add_argument("-d", "--description", action="store", type=str, default=None, help="more information for graph")
 args = parser.parse_args()
 
 class DataSeries:
@@ -92,11 +93,17 @@ def main():
     for ax, plot, plot_data, plot_count in zip(axes.reshape(-1), settings["plots"], plot_datas, plot_counts):
         # ax.set_xlim([0,1000])
         # ax.set_ylim([0,1.0])
-        ax.set_title(plot["title"])
+        titles = [plot["title"]]
+        if not args.description is None:
+            titles.append("({})".format(args.description))
+        ax.set_title("\n".join(titles))
         ax.set_xlabel(plot["xlabel"])
         ax.set_ylabel(plot["ylabel"])
         for data_type, data in zip(settings["data-types"], plot_data):
-            ax.plot(plot_count, data, label=data_type["name"], linewidth=4.0)
+            style = {}
+            if "style" in data_type:
+                style = data_type["style"]
+            ax.plot(plot_count, data, label=data_type["name"], linewidth=4.0, **style)
         ax.legend()
         ax.grid(True)
     plt.show()
