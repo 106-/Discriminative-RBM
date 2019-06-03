@@ -25,7 +25,7 @@ def arg_setting():
     parser.add_argument("-l", "--datasize_limit", action="store", default=0, type=int, help="limit data size")
     parser.add_argument("-m", "--minibatch_size", action="store", default=100, type=int, help="minibatch size")
     parser.add_argument("-o", "--optimizer", action="store", default="adamax", type=str, help="optimizer")
-    parser.add_argument("-t", "--train_correct_rate", action="store_true", help="calculate correct rate for training data or not")
+    parser.add_argument("-c", "--correct_rate", action="store_true", help="calculate correct rate for training|test data or not")
     parser.add_argument("-k", "--kl_divergence", action="store", type=str, default=None, help="calculate kl-divergence from specified DRBM (json file)")
     parser.add_argument("-i", "--test_interval", action="store", type=int, default=100, help="interval to calculate ( test error | training error | KL-Divergence )")
     parser.add_argument("-d", "--result_directory", action="store", type=str, default="./results/", help="directory to output learning result file.")
@@ -145,7 +145,7 @@ def main():
     start_time = time.time()
 
     learning_result = drbm.train(settings.training_data, settings.test_data, args.learning_num, args.minibatch_size, opt, test_interval=args.test_interval,
-        calc_train_correct_rate=args.train_correct_rate,
+        correct_rate=args.correct_rate,
         gen_drbm=gen_drbm,
     )
     

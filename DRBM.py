@@ -14,7 +14,7 @@ import multiprocessing as mp
 
 
 class parameters:
-    def __init__(self, num_visible, num_hidden, num_class, randominit=True, initial_parameter=None):
+    def __init__(self, num_visible, num_hidden, num_class, randominit=True, initial_parameter=None, random_bias=False):
         self.num_visible = num_visible
         self.num_hidden = num_hidden
         self.num_class = num_class
@@ -25,9 +25,13 @@ class parameters:
             self.weight_v = np.random.uniform(-uniform_range, uniform_range, (num_visible, num_hidden))
             uniform_range = np.sqrt( 6/(num_hidden + num_class) )
             self.weight_w = np.random.uniform(-uniform_range, uniform_range, (num_class, num_hidden))
-            # バイアスは0で初期化
-            self.bias_c = np.zeros(num_hidden)
-            self.bias_b = np.zeros(num_class)
+            if not random_bias:
+                # バイアスは0で初期化
+                self.bias_c = np.zeros(num_hidden)
+                self.bias_b = np.zeros(num_class)
+            else:
+                self.bias_c = np.random.randn(num_hidden)
+                self.bias_b = np.random.randn(num_class)
         elif initial_parameter:
             self.weight_w = initial_parameter["weight_w"]
             self.weight_v = initial_parameter["weight_v"]
@@ -87,7 +91,7 @@ class parameters:
 
 class DRBM:
 
-    def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None, enable_sparse=False):
+    def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None, enable_sparse=False, random_bias=False):
         self.num_visible = num_visible
         self.num_hidden = num_hidden
         self.num_class = num_class
@@ -98,7 +102,7 @@ class DRBM:
         if initial_parameter:
             self.para = initial_parameter
         else:
-            self.para = parameters(num_visible, num_hidden, num_class)
+            self.para = parameters(num_visible, num_hidden, num_class, random_bias=random_bias)
 
         if self.enable_sparse:
             logging.info("enable sparse normalization for hidden layer.")
@@ -151,7 +155,7 @@ class DRBM:
         q.put(diff_c)
         q.put(diff_v)
     
-    def train(self, training, test, learning_time, batch_size, optimizer, test_interval=100, dump_parameter=False, calc_train_correct_rate=False, gen_drbm=None):
+    def train(self, training, test, learning_time, batch_size, optimizer, test_interval=100, dump_parameter=False, correct_rate=False, gen_drbm=None):
 
         learning_result = LearningResult(learning_time, optimizer.__class__.__name__, len(training.data), len(test.data), batch_size, test_interval, self)
 
@@ -180,13 +184,13 @@ class DRBM:
             resume_time = self.resume[0]
             learning_time = self.resume[1]
 
-        logging.info("calculating initial correct rate.")
-        test_correct_rate(0, test)
-
-        if calc_train_correct_rate:
+        if correct_rate:
+            logging.info("calculating initial correct rate.")
             train_correct_rate(0, training)
+            test_correct_rate(0, test)
 
         if gen_drbm is not None:
+            logging.info("calculating initial KL-Divergence.")
             calc_kld(0)
 
         for lt in range(resume_time, learning_time):
@@ -224,8 +228,8 @@ class DRBM:
                 self.para.weight_v += diff.weight_v
 
                 if lt % test_interval == 0 and lt!=0:
-                    test_correct_rate(lt, test)
-                    if calc_train_correct_rate:
+                    if correct_rate:
+                        test_correct_rate(lt, test)
                         train_correct_rate(lt, training)
 
                     if gen_drbm is not None:
