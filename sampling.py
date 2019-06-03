@@ -26,7 +26,7 @@ def main():
 
     drbm = None
     if p is None:
-        drbm = DRBM(v, h, c, d)
+        drbm = DRBM(v, h, c, d, random_bias=True)
         drbm.save("sampling_parameters.json")
     else:
         drbm = DRBM.load_from_json(p)
