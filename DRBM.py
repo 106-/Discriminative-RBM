@@ -260,8 +260,8 @@ class DRBM:
                 exit()
 
         logging.info("calculating final correct rate.")
-        test_correct_rate(lt, test)
-        if calc_train_correct_rate:
+        if correct_rate:
+            test_correct_rate(lt, test)
             train_correct_rate(lt, training)
 
         if gen_drbm is not None:
