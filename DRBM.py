@@ -202,9 +202,6 @@ class DRBM:
                 self._sig_A_ok = self.marginal.diff(self._A_matrix_ok)
                 self._sig_A = self.marginal.diff(self._A_matrix)
 
-                if self.enable_sparse:
-                    self.marginal.fit_lambda(self._A_matrix, self._A_matrix_ok, self._probs_matrix)
-
                 q = [mp.Queue() for i in range(2)]
                 # self._differential_bw(q[0], batch)
                 # self._differential_cv(q[1], batch)
@@ -212,6 +209,10 @@ class DRBM:
                     mp.Process(target=self._differential_bw, args=(q[0],batch)),
                     mp.Process(target=self._differential_cv, args=(q[1],batch)),
                 ]
+
+                if self.enable_sparse:
+                    processes.append(mp.Process(target=self.marginal.fit_lambda, args=(self._A_matrix, self._A_matrix_ok, self._probs_matrix)))
+                
                 for p in processes:
                     p.start()
                 self.grad.bias_b = q[0].get()
