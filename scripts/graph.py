@@ -5,6 +5,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import sys
 import os
+from glob import glob
 import numpy as np
 import argparse
 import json
@@ -52,14 +53,14 @@ class DataSeries:
 
 def main():
     settings = json.load(open(args.setting_file, "r"))
-    filelist = os.listdir(args.directory)
+    filelist = glob(os.path.join(args.directory, "**"), recursive=True)
 
     data_series_objects = [] 
     for t in settings["data-types"]:
         datas = []
         for f in filelist:
-            if t["filename_includes"] in f and "log" in f:
-                datas.append(json.load( open(os.path.join(args.directory,f),"r")))
+            if t["filename_includes"] in f and ("log" in f and ".json" in f):
+                datas.append(json.load( open(f,"r")))
         data_series_objects.append( DataSeries(datas) )
 
     plot_datas = []
