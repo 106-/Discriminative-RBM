@@ -1,13 +1,14 @@
 
 import numpy as np
+import numexpr as ne
 
 # act は左右対称(あるいはsoftplus)のやつ
 # diff はtanhみたいなやつ
 
 def softplus(x):
     return np.piecewise(x, [x<0], [
-        lambda x: np.log(1+np.exp(x)),
-        lambda x: x+np.log(1+np.exp(-x))
+        lambda x: ne.evaluate("log(1+exp(x))"),
+        lambda x: ne.evaluate("x+log(1+exp(-x))")
     ])
 
 class original:
@@ -15,7 +16,7 @@ class original:
         return softplus(x)
 
     def diff(self, x):
-        return 1/(1+np.exp(-x))
+        return ne.evaluate("1/(1+exp(-x))")
 
 class multiple_discrete:
     def __init__(self, div_num):
@@ -39,21 +40,21 @@ class multiple_discrete:
     
     def _minus_sigmoid(self, x):
         return np.piecewise(x, [x>0], [
-            lambda x: 1 / (np.exp(-x)-1),
-            lambda x: -1 / (np.exp(x)-1)-1
+            lambda x: ne.evaluate("1 / (exp(-x)-1)"),
+            lambda x: ne.evaluate("-1 / (exp(x)-1)-1")
         ])
 
 class multiple_continuous:
     def act(self, x):
         return np.piecewise(np.fabs(x), [x==0], [
             np.log(2),
-            lambda x: x+np.log( (1-np.exp(-2*x))/x )
+            lambda x: ne.evaluate("x+log( (1-exp(-2*x))/x )")
         ])
 
     def diff(self, x):
         return np.piecewise(x, [x==0], [
             0,
-            lambda x: (1 / np.tanh(x)) - (1/x)
+            lambda x: ne.evaluate("(1 / tanh(x)) - (1/x)")
         ])
 
 class sparse_continuous:
@@ -87,16 +88,13 @@ class sparse_continuous:
         np.sum((self.lambda_vector, diff_lambda), axis=0, out=self.lambda_vector)
 
     def _get_separation_calc(self, x):
-        a = (x - softplus(self.lambda_vector))/2
-        b = (x + softplus(self.lambda_vector))/2
+        sp_lambda = softplus(self.lambda_vector)
+        a = ne.evaluate("(x - sp_lambda)/2")
+        b = ne.evaluate("(x + sp_lambda)/2")
         return (a, b)
 
     def _Q(self, b, a):
         return self._K(b) / self._K(a)
-        #return np.piecewise(b, [b==0], [
-        #    1,
-        #    lambda x: (a/b) * ( ( np.exp(2*a) - np.exp(-2*(b-a)) ) / (np.exp(2*a)-1) )
-        #])
 
     def _J(self, a, b):
         higher_than_zero_a = 0<=a
@@ -107,9 +105,9 @@ class sparse_continuous:
 
     def _K(self, x):
         return np.piecewise(x, [ x<-1e-3, 1e-3<x ], [
-            lambda x: np.exp(-x) * np.sinh(np.abs(x)) / np.abs(x),
-            lambda x: 1/(2*x)*(1-np.exp(-2*x)),
-            lambda x: 1 - x + 2.0/3.0*x**2 - 1.0/3.0*x**3,
+            lambda x: ne.evaluate("exp(-x)*sinh(abs(x))/abs(x)"),
+            lambda x: ne.evaluate("1/(2*x)*(1-exp(-2*x))"),
+            lambda x: ne.evaluate("1 - x + 2.0/3.0*x**2 - 1.0/3.0*x**3")
         ])
 
     def _U(self, a,b, alpha=0.5, beta=-0.5):
@@ -117,8 +115,8 @@ class sparse_continuous:
 
     def _r(self, x):
         return np.piecewise(x, [ np.abs(x) < 1e-3 ], [
-            lambda x: -1 + x/3 - x**3/45,
-            lambda x: 1/np.tanh(x) - 1/x -1
+            lambda x: ne.evaluate("-1 + x/3 - x**3/45"),
+            lambda x: ne.evaluate("1/tanh(x) - 1/x -1")
         ])
 
 if __name__ == '__main__':
