@@ -139,22 +139,21 @@ class DRBM:
             return energies
 
     # b,wの勾配を計算diff_bは(K),diff_wは(K,m)
-    def _differential_bw(self, q, training):
+    def _differential_bw(self, training):
         diff_tp = training.answer - self._probs_matrix
         diff_b = np.sum(diff_tp, axis=0) / len(training.data)
         diff_w = np.sum(np.multiply(self._A_matrix_ok, diff_tp[:, :, np.newaxis]), axis=0) / len(training.data)
-        q.put(diff_b)
-        q.put(diff_w)
+        return diff_b, diff_w
     
     # c,vの勾配 diff_cは(m), diff_vは(n,m)
-    def _differential_cv(self, q, training):
+    def _differential_cv(self, training):
         sum_under_k = np.sum( self._sig_A_ok * self._probs_matrix[:, :, np.newaxis], axis=1)
         diff_sig_a = self._sig_A - sum_under_k
         diff_c = np.sum( diff_sig_a, axis=0 ) / len(training.data)
         diff_v = np.sum( np.multiply( training.data[:, :, np.newaxis], diff_sig_a[:, np.newaxis, :]), axis=0) / len(training.data)
-        q.put(diff_c)
-        q.put(diff_v)
+        return diff_c, diff_v
     
+    @profile
     def train(self, training, test, learning_time, batch_size, optimizer, test_interval=100, dump_parameter=False, correct_rate=False, gen_drbm=None):
 
         learning_result = LearningResult(learning_time, optimizer.__class__.__name__, len(training.data), len(test.data), batch_size, test_interval, self)
@@ -202,25 +201,11 @@ class DRBM:
                 self._sig_A_ok = self.marginal.diff(self._A_matrix_ok)
                 self._sig_A = self.marginal.diff(self._A_matrix)
 
-                q = [mp.Queue() for i in range(2)]
-                # self._differential_bw(q[0], batch)
-                # self._differential_cv(q[1], batch)
-                processes = [
-                    mp.Process(target=self._differential_bw, args=(q[0],batch)),
-                    mp.Process(target=self._differential_cv, args=(q[1],batch)),
-                ]
-
                 if self.enable_sparse:
-                    processes.append(mp.Process(target=self.marginal.fit_lambda, args=(self._A_matrix, self._A_matrix_ok, self._probs_matrix)))
+                    self.marginal.fit_lambda(self._A_matrix, self._A_matrix_ok, self._probs_matrix)
                 
-                for p in processes:
-                    p.start()
-                self.grad.bias_b = q[0].get()
-                self.grad.weight_w = q[0].get()
-                self.grad.bias_c = q[1].get()
-                self.grad.weight_v = q[1].get()
-                for p in processes:
-                    p.join()
+                self.grad.bias_b, self.grad.weight_w = self._differential_bw(batch)
+                self.grad.bias_c, self.grad.weight_v = self._differential_cv(batch) 
 
                 diff = optimizer.update(self.grad)
                 self.para.bias_b   += diff.bias_b
