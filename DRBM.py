@@ -153,7 +153,6 @@ class DRBM:
         diff_v = np.sum( np.multiply( training.data[:, :, np.newaxis], diff_sig_a[:, np.newaxis, :]), axis=0) / len(training.data)
         return diff_c, diff_v
     
-    @profile
     def train(self, training, test, learning_time, batch_size, optimizer, test_interval=100, dump_parameter=False, correct_rate=False, gen_drbm=None):
 
         learning_result = LearningResult(learning_time, optimizer.__class__.__name__, len(training.data), len(test.data), batch_size, test_interval, self)
