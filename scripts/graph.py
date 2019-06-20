@@ -14,6 +14,7 @@ parser = argparse.ArgumentParser(description="make average graph from log file")
 parser.add_argument("directory", action="store", type=str, help="set directory of log file")
 parser.add_argument("setting_file", action="store", type=str, help="specify setting file")
 parser.add_argument("-d", "--description", action="store", type=str, default=None, help="more information for graph")
+parser.add_argument("-s", "--step_value", action="store", type=int, default=1, help="step value for plotting graph")
 args = parser.parse_args()
 
 class DataSeries:
@@ -104,7 +105,7 @@ def main():
             style = {}
             if "style" in data_type:
                 style = data_type["style"]
-            ax.plot(plot_count, data, label=data_type["name"], linewidth=4.0, **style)
+            ax.plot(plot_count[::args.step_value], data[::args.step_value], label=data_type["name"], linewidth=4.0, **style)
         ax.legend()
         ax.grid(True)
     plt.show()
