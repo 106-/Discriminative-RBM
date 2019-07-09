@@ -40,6 +40,10 @@ class DataSeries:
         return 1 - self._get_values_mean("test-correct-rate")
     def train_error_rate(self):
         return 1 - self._get_values_mean("train-correct-rate")
+    def sparse_parameter_max(self):
+        return self._get_values_mean("sparse_parameter_max")
+    def sparse_parameter_avg(self):
+        return self._get_values_mean("sparse_parameter_avg")
     def generalization_error_rate(self):
         return self.test_error_rate() - self.train_error_rate()
     
@@ -77,6 +81,10 @@ def main():
                 values.append(d.train_error_rate())
             elif p["type"] == "generalization-error-rate":
                 values.append(d.generalization_error_rate())
+            elif p["type"] == "sparse_parameter_max":
+                values.append(d.sparse_parameter_max())
+            elif p["type"] == "sparse_parameter_avg":
+                values.append(d.sparse_parameter_avg())
         if p["xtype"] == "epoch":
             plot_counts.append(data_series_objects[0].train_epoch_range())
         elif p["xtype"] == "count":

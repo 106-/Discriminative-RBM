@@ -191,6 +191,10 @@ class DRBM:
             logging.info("calculating initial KL-Divergence.")
             calc_kld(0)
 
+        if self.enable_sparse:
+            learning_result.make_log(0, "sparse_parameter_max", np.max(self.marginal.lambda_vector).tolist())
+            learning_result.make_log(0, "sparse_parameter_avg", np.average(self.marginal.lambda_vector).tolist())
+
         for lt in range(resume_time, learning_time):
             try:
                 batch = training.minibatch(batch_size)
@@ -217,12 +221,16 @@ class DRBM:
                         test_correct_rate(lt, test)
                         train_correct_rate(lt, training)
 
-                    if gen_drbm is not None:
-                        calc_kld(lt)
+                    # if gen_drbm is not None:
+                    #     calc_kld(lt)
 
                     if dump_parameter:
                         self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
                         logging.info("parameters are dumped.")
+
+                    if self.enable_sparse:
+                        learning_result.make_log(lt, "sparse_parameter_max", np.max(self.marginal.lambda_vector).tolist())
+                        learning_result.make_log(lt, "sparse_parameter_avg", np.average(self.marginal.lambda_vector).tolist())
 
                 logging.info("️training is processing. complete : {} / {}".format(lt+1, learning_time))
 
@@ -248,7 +256,11 @@ class DRBM:
         if correct_rate:
             test_correct_rate(lt, test)
             train_correct_rate(lt, training)
-
+            
+        if self.enable_sparse:
+            learning_result.make_log(lt, "sparse_parameter_max", np.max(self.marginal.lambda_vector).tolist())
+            learning_result.make_log(lt, "sparse_parameter_avg", np.average(self.marginal.lambda_vector).tolist())
+            
         if gen_drbm is not None:
             calc_kld(lt)
     
@@ -340,7 +352,6 @@ class LearningResult:
         }
     
     def make_log(self, learning_count, value_name, value):
-        pass
         if not value_name in self.testament["log"]:
             self.testament["log"][value_name] = []
         self.testament["log"][value_name].append( [learning_count, value] )
