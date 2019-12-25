@@ -313,6 +313,8 @@ class DRBM:
             "div_num":self.div_num,
             "enable_sparse":self.enable_sparse,
         }
+        if self.enable_sparse:
+            params["sparse_param"] = self.marginal.lambda_vector
         if not training_progress == None:
             params["training_progress"] = training_progress
         json.dump(params, open(filename, "w+"))
