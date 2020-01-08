@@ -93,21 +93,12 @@ class LearningDataSettings:
             self.class_unit = json_setting["class-unit"]
             self.training_data = MNIST(json_setting["training-data"], self.class_unit)
             self.test_data = MNIST(json_setting["test-data"], self.class_unit)
+            self.initial_model = json_setting["initial-model"]
             if json_setting["needs-normalize"]:
                 # mu, sigma = self.training_data.normalize()
                 # self.test_data.normalize(mu=mu, sigma=sigma)
                 self.training_data.normalize_255()
                 self.test_data.normalize_255()
-            if "initial-parameters" in json_setting:
-                params = {
-                    "weight_w": np.load(json_setting["initial-parameters"]["weight_w"]),
-                    "weight_v": np.load(json_setting["initial-parameters"]["weight_v"]),
-                    "bias_c": np.load(json_setting["initial-parameters"]["bias_c"]),
-                    "bias_b": np.load(json_setting["initial-parameters"]["bias_b"]),
-                }
-                self.initial_parameters = parameters(self.input_unit, self.hidden_unit, self.class_unit, initial_parameter=params)
-            else:
-                self.initial_parameters = None
 
 def main():
     logging.info("️start loading setting data.")
@@ -120,8 +111,8 @@ def main():
     hidden_layer_value_num = args.division_num
 
     logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d, div_num:%d"%(vector_size, hidden_unit_num, class_num, hidden_layer_value_num))
-
-    drbm = DRBM(vector_size, hidden_unit_num, class_num, hidden_layer_value_num, initial_parameter=settings.initial_parameters, enable_sparse=args.sparse)
+    
+    drbm = DRBM.load_from_json(settings.initial_model, args.division_num, args.sparse)
 
     if args.datasize_limit != 0:
         settings.training_data = settings.training_data.restore_minibatch(args.datasize_limit, random=False)

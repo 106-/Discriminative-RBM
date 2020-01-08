@@ -161,8 +161,6 @@ class DRBM:
             print(len(training.data[0]))
             raise TypeError
         
-        resume_time = 0
-
         def train_correct_rate(lt, train):
             correct_rate, correct = self.test_error(train)
             logging.info("️train correct rate: {} ({} / {})".format( correct_rate, correct, len(train.data)))
@@ -178,10 +176,6 @@ class DRBM:
             logging.info("KL-Divergence mean: {}".format(kld_mean))
             learning_result.make_log(lt, "KL-Divergence", kld_mean)
 
-        if not self.resume == None:
-            resume_time = self.resume[0]
-            learning_time = self.resume[1]
-
         if correct_rate:
             logging.info("calculating initial correct rate.")
             train_correct_rate(0, training)
@@ -195,7 +189,7 @@ class DRBM:
             learning_result.make_log(0, "sparse_parameter_max", np.max(self.marginal.lambda_vector).tolist())
             learning_result.make_log(0, "sparse_parameter_avg", np.average(self.marginal.lambda_vector).tolist())
 
-        for lt in range(resume_time, learning_time):
+        for lt in range(learning_time):
             try:
                 batch = training.minibatch(batch_size)
                 self._A_matrix_ok = self.matrix_ok_A(batch.data)
@@ -302,32 +296,28 @@ class DRBM:
 
     def save(self, filename, training_progress=None):
         params = {
-            "training_progress":training_progress,
             "num_class":self.num_class,
             "num_hidden":self.num_hidden,
             "num_visible":self.num_visible,
-            "bias_b":self.para.bias_b.tolist(),
-            "bias_c":self.para.bias_c.tolist(),
-            "weight_w":self.para.weight_w.tolist(),
-            "weight_v":self.para.weight_v.tolist(),
-            "div_num":self.div_num,
-            "enable_sparse":self.enable_sparse,
+            "params":{
+                "bias_b":self.para.bias_b.tolist(),
+                "bias_c":self.para.bias_c.tolist(),
+                "weight_w":self.para.weight_w.tolist(),
+                "weight_v":self.para.weight_v.tolist(),
+            }
         }
         if self.enable_sparse:
-            params["sparse_param"] = self.marginal.lambda_vector
-        if not training_progress == None:
-            params["training_progress"] = training_progress
-        json.dump(params, open(filename, "w+"))
+            params["sparse_params"] = self.marginal.lambda_vector.tolist()
+        json.dump(params, open(filename, "w+"), indent=2)
     
     @staticmethod
-    def load_from_json(filename):
-        params = json.load(open(filename, "r"))
-        drbm = DRBM(params["num_visible"], params["num_hidden"], params["num_class"], params["div_num"])
-        drbm.para.bias_b = np.array(params["bias_b"])
-        drbm.para.bias_c = np.array(params["bias_c"])
-        drbm.para.weight_w = np.array(params["weight_w"])
-        drbm.para.weight_v = np.array(params["weight_v"])
-        drbm.resume = params["training_progress"]
+    def load_from_json(filename, hidden_division=2, enable_sparse=False):
+        data = json.load(open(filename, "r"))
+        drbm = DRBM(data["num_visible"], data["num_hidden"], data["num_class"], hidden_division, enable_sparse=enable_sparse)
+        for p in data["params"]:
+            setattr(drbm.para, p, np.array(data["params"][p]))
+        if enable_sparse and "sparse_params" in data:
+            drbm.marginal.lambda_vector = np.array(data["sparse_params"])
         return drbm
 
 class LearningResult:
