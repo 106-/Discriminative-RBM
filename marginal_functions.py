@@ -58,11 +58,23 @@ class multiple_continuous:
         ])
 
 class sparse_continuous:
-    def __init__(self, hidden_num, lambda_vector=None, initial_lambda=10.0):
+    def __init__(self, hidden_num, lambda_vector=None, initial_lambda=10.0, use_adamax=True):
         if lambda_vector is None:
             self.lambda_vector = np.full(hidden_num, initial_lambda)
         else:
             self.lambda_vector = lambda_vector
+        
+        if use_adamax:
+            self._alpha = 0.002
+            self._beta1 = 0.9
+            self._beta2 = 0.999
+            self._epsilon = 1e-8
+            self._t = 0
+
+            self._moment = np.zeros(self.lambda_vector.shape)
+            self._norm = np.zeros(self.lambda_vector.shape)
+            self._diff = np.zeros(self.lambda_vector.shape)
+            self.use_adamax = use_adamax
     
     def act(self, x):
         a, b = self._get_separation_calc(x)
@@ -84,8 +96,17 @@ class sparse_continuous:
         # diff_mar_a -> (N,m)
         diff_mar_a = mar_a_data - sum_k
         # (m) * (N,m) なのでbroadcastが有効
-        diff_lambda = diff_softplus * np.sum( diff_mar_a, axis=0) / len(a_data)
-        np.sum((self.lambda_vector, diff_lambda), axis=0, out=self.lambda_vector)
+        grad_lambda = diff_softplus * np.sum( diff_mar_a, axis=0) / len(a_data)
+
+        if self.use_adamax:
+            # Adamax
+            self._t += 1
+            self._moment = self._moment * self._beta1 + grad_lambda * (1-self._beta1)
+            self._norm = np.max( np.vstack((self._norm * self._beta2, np.abs(grad_lambda))), axis=0)
+            diff = self._moment / (self._norm + self._epsilon) * (self._alpha/(1-np.power(self._beta1, self._t)))
+            np.sum((self.lambda_vector, diff), axis=0, out=self.lambda_vector)
+        else:
+            np.sum((self.lambda_vector, grad_lambda), axis=0, out=self.lambda_vector)
 
     def _get_separation_calc(self, x):
         sp_lambda = softplus(self.lambda_vector)
