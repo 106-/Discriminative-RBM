@@ -84,7 +84,7 @@ class sparse_continuous:
         # diff_mar_a -> (N,m)
         diff_mar_a = mar_a_data - sum_k
         # (m) * (N,m) なのでbroadcastが有効
-        diff_lambda = np.sum( np.multiply( diff_softplus, diff_mar_a), axis=0) / len(a_data)
+        diff_lambda = diff_softplus * np.sum( diff_mar_a, axis=0) / len(a_data)
         np.sum((self.lambda_vector, diff_lambda), axis=0, out=self.lambda_vector)
 
     def _get_separation_calc(self, x):
