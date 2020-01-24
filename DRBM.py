@@ -91,7 +91,7 @@ class parameters:
 
 class DRBM:
 
-    def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None, enable_sparse=False, random_bias=False):
+    def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None, enable_sparse=False, random_bias=False, sparse_learning_rate=1.0):
         self.num_visible = num_visible
         self.num_hidden = num_hidden
         self.num_class = num_class
@@ -106,7 +106,7 @@ class DRBM:
 
         if self.enable_sparse:
             logging.info("enable sparse normalization for hidden layer.")
-            self.marginal = sparse_continuous(num_hidden)
+            self.marginal = sparse_continuous(num_hidden, learning_rate=sparse_learning_rate)
         # div_numが1のときは従来のDRBM
         elif self.div_num == 1:
             self.marginal = original()
@@ -215,8 +215,8 @@ class DRBM:
                         test_correct_rate(lt, test)
                         train_correct_rate(lt, training)
 
-                    # if gen_drbm is not None:
-                    #     calc_kld(lt)
+                    if gen_drbm is not None:
+                        calc_kld(lt)
 
                     if dump_parameter:
                         self.save("%d_of_%d.json"%(lt,learning_time), [lt, learning_time])
@@ -311,9 +311,9 @@ class DRBM:
         json.dump(params, open(filename, "w+"), indent=2)
     
     @staticmethod
-    def load_from_json(filename, hidden_division=2, enable_sparse=False):
+    def load_from_json(filename, hidden_division=2, enable_sparse=False, sparse_learning_rate=1.0):
         data = json.load(open(filename, "r"))
-        drbm = DRBM(data["num_visible"], data["num_hidden"], data["num_class"], hidden_division, enable_sparse=enable_sparse)
+        drbm = DRBM(data["num_visible"], data["num_hidden"], data["num_class"], hidden_division, enable_sparse=enable_sparse, sparse_learning_rate=sparse_learning_rate)
         for p in data["params"]:
             setattr(drbm.para, p, np.array(data["params"][p]))
         if enable_sparse and "sparse_params" in data:

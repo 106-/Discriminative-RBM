@@ -58,7 +58,7 @@ class multiple_continuous:
         ])
 
 class sparse_continuous:
-    def __init__(self, hidden_num, lambda_vector=None, initial_lambda=10.0, use_adamax=True):
+    def __init__(self, hidden_num, lambda_vector=None, initial_lambda=10.0, use_adamax=False, learning_rate=1.0):
         if lambda_vector is None:
             self.lambda_vector = np.full(hidden_num, initial_lambda)
         else:
@@ -75,6 +75,8 @@ class sparse_continuous:
             self._norm = np.zeros(self.lambda_vector.shape)
             self._diff = np.zeros(self.lambda_vector.shape)
             self.use_adamax = use_adamax
+        else:
+            self._learning_rate = learning_rate
     
     def act(self, x):
         a, b = self._get_separation_calc(x)
@@ -106,7 +108,7 @@ class sparse_continuous:
             diff = self._moment / (self._norm + self._epsilon) * (self._alpha/(1-np.power(self._beta1, self._t)))
             np.sum((self.lambda_vector, diff), axis=0, out=self.lambda_vector)
         else:
-            np.sum((self.lambda_vector, grad_lambda), axis=0, out=self.lambda_vector)
+            np.sum((self.lambda_vector, grad_lambda * self._learning_rate), axis=0, out=self.lambda_vector)
 
     def _get_separation_calc(self, x):
         sp_lambda = softplus(self.lambda_vector)

@@ -30,6 +30,7 @@ def arg_setting():
     parser.add_argument("-i", "--test_interval", action="store", type=int, default=100, help="interval to calculate ( test error | training error | KL-Divergence )")
     parser.add_argument("-d", "--result_directory", action="store", type=str, default="./results/", help="directory to output learning result file.")
     parser.add_argument("-s", "--sparse", action="store_true", help="enable sparse normalization or not")
+    parser.add_argument("-r", "--sparse_learning_rate", action="store", type=float, default=1.0, help="learning rate for sparse parameter")
     args = parser.parse_args()
 
 class LearningData:
@@ -112,7 +113,7 @@ def main():
 
     logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d, div_num:%d"%(vector_size, hidden_unit_num, class_num, hidden_layer_value_num))
     
-    drbm = DRBM.load_from_json(settings.initial_model, args.division_num, args.sparse)
+    drbm = DRBM.load_from_json(settings.initial_model, args.division_num, args.sparse, sparse_learning_rate=args.sparse_learning_rate)
 
     if args.datasize_limit != 0:
         settings.training_data = settings.training_data.restore_minibatch(args.datasize_limit, random=False)
@@ -145,7 +146,7 @@ def main():
 
     now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     hidden_layer = "s" if args.sparse else "d"
-    filename_template = "{}_{}{}_v{}h{}c{}_%s.json".format(now, hidden_layer, drbm.div_num, drbm.num_visible, drbm.num_hidden, drbm.num_class)
+    filename_template = "adamax_{}_{}{}_v{}h{}c{}_%s.json".format(now, hidden_layer, drbm.div_num, drbm.num_visible, drbm.num_hidden, drbm.num_class)
     learning_result.save(os.path.join(args.result_directory, filename_template%"log"))
 
     drbm.save( os.path.join(args.result_directory, filename_template%"params"))
