@@ -311,14 +311,22 @@ class DRBM:
         json.dump(params, open(filename, "w+"), indent=2)
     
     @staticmethod
-    def load_from_json(filename, hidden_division=2, enable_sparse=False, sparse_learning_rate=1.0):
+    def load_from_json(filename, hidden_division=None, enable_sparse=False, sparse_learning_rate=1.0):
         data = json.load(open(filename, "r"))
+        if not hidden_division and "hidden_division" in data:
+            hidden_division = data["hidden_division"]
+        if not enable_sparse and "enable_sparse" in data:
+            enable_sparse = data["enable_sparse"]
+        hidden_division = 2 if hidden_division is None else hidden_division
         drbm = DRBM(data["num_visible"], data["num_hidden"], data["num_class"], hidden_division, enable_sparse=enable_sparse, sparse_learning_rate=sparse_learning_rate)
         for p in data["params"]:
             setattr(drbm.para, p, np.array(data["params"][p]))
         if enable_sparse and "sparse_params" in data:
             drbm.marginal.lambda_vector = np.array(data["sparse_params"])
         return drbm
+    
+    def __str__(self):
+        return "DRBM: v={}, h={}, c={}, hidden_division={}, enable_sparse={}".format(self.num_visible, self.num_hidden, self.num_class, self.div_num, self.enable_sparse)
 
 class LearningResult:
     def __init__(self, learning_num, optimize_method, train_data_length, test_data_length, batch_size, test_interval, drbm):

@@ -114,6 +114,7 @@ def main():
     logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d, div_num:%d"%(vector_size, hidden_unit_num, class_num, hidden_layer_value_num))
     
     drbm = DRBM.load_from_json(settings.initial_model, args.division_num, args.sparse, sparse_learning_rate=args.sparse_learning_rate)
+    logging.info("initial model: {}".format(str(drbm)))
 
     if args.datasize_limit != 0:
         settings.training_data = settings.training_data.restore_minibatch(args.datasize_limit, random=False)
@@ -121,6 +122,7 @@ def main():
     gen_drbm = None
     if args.kl_divergence:
         gen_drbm = DRBM.load_from_json(args.kl_divergence)
+        logging.info("generative model: {}".format(str(gen_drbm)))
 
     opt = None
     if args.optimizer == "momentum":
