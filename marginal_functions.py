@@ -64,6 +64,7 @@ class sparse_continuous:
         else:
             self.lambda_vector = lambda_vector
         
+        self.use_adamax = use_adamax
         if use_adamax:
             self._alpha = 0.002
             self._beta1 = 0.9
@@ -74,7 +75,6 @@ class sparse_continuous:
             self._moment = np.zeros(self.lambda_vector.shape)
             self._norm = np.zeros(self.lambda_vector.shape)
             self._diff = np.zeros(self.lambda_vector.shape)
-            self.use_adamax = use_adamax
         else:
             self._learning_rate = learning_rate
     
