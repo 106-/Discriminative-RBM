@@ -91,7 +91,7 @@ class parameters:
 
 class DRBM:
 
-    def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None, enable_sparse=False, random_bias=False, sparse_learning_rate=1.0):
+    def __init__(self, num_visible, num_hidden, num_class, div_num, initial_parameter=None, enable_sparse=False, random_bias=False, sparse_learning_rate=1.0, sparse_adamax=False):
         self.num_visible = num_visible
         self.num_hidden = num_hidden
         self.num_class = num_class
@@ -106,7 +106,7 @@ class DRBM:
 
         if self.enable_sparse:
             logging.info("enable sparse normalization for hidden layer.")
-            self.marginal = sparse_continuous(num_hidden, learning_rate=sparse_learning_rate)
+            self.marginal = sparse_continuous(num_hidden, learning_rate=sparse_learning_rate, use_adamax=sparse_adamax)
         # div_numが1のときは従来のDRBM
         elif self.div_num == 1:
             self.marginal = original()
@@ -311,14 +311,14 @@ class DRBM:
         json.dump(params, open(filename, "w+"), indent=2)
     
     @staticmethod
-    def load_from_json(filename, hidden_division=None, enable_sparse=False, sparse_learning_rate=1.0):
+    def load_from_json(filename, hidden_division=None, enable_sparse=False, sparse_learning_rate=1.0, sparse_adamax=False):
         data = json.load(open(filename, "r"))
         if not hidden_division and "hidden_division" in data:
             hidden_division = data["hidden_division"]
         if not enable_sparse and "enable_sparse" in data:
             enable_sparse = data["enable_sparse"]
         hidden_division = 2 if hidden_division is None else hidden_division
-        drbm = DRBM(data["num_visible"], data["num_hidden"], data["num_class"], hidden_division, enable_sparse=enable_sparse, sparse_learning_rate=sparse_learning_rate)
+        drbm = DRBM(data["num_visible"], data["num_hidden"], data["num_class"], hidden_division, enable_sparse=enable_sparse, sparse_learning_rate=sparse_learning_rate, sparse_adamax=sparse_adamax)
         for p in data["params"]:
             setattr(drbm.para, p, np.array(data["params"][p]))
         if enable_sparse and "sparse_params" in data:

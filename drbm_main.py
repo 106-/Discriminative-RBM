@@ -31,6 +31,7 @@ def arg_setting():
     parser.add_argument("-d", "--result_directory", action="store", type=str, default="./results/", help="directory to output learning result file.")
     parser.add_argument("-s", "--sparse", action="store_true", help="enable sparse normalization or not")
     parser.add_argument("-r", "--sparse_learning_rate", action="store", type=float, default=1.0, help="learning rate for sparse parameter")
+    parser.add_argument("-a", "--sparse_adamax", action="store_true", help="updating sparse parameter by adamax.")
     parser.add_argument("-p", "--filename_prefix", action="store", type=str, default="_", help="filename prefix")
     args = parser.parse_args()
 
@@ -114,7 +115,7 @@ def main():
 
     logging.info("input_vector(n):%d, hidden_unit(m):%d, class_num(K):%d, div_num:%d"%(vector_size, hidden_unit_num, class_num, hidden_layer_value_num))
     
-    drbm = DRBM.load_from_json(settings.initial_model, args.division_num, args.sparse, sparse_learning_rate=args.sparse_learning_rate)
+    drbm = DRBM.load_from_json(settings.initial_model, args.division_num, args.sparse, sparse_learning_rate=args.sparse_learning_rate, sparse_adamax=args.sparse_adamax)
     logging.info("initial model: {}".format(str(drbm)))
 
     if args.datasize_limit != 0:

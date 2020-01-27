@@ -101,6 +101,7 @@ class sparse_continuous:
         grad_lambda = diff_softplus * np.sum( diff_mar_a, axis=0) / len(a_data)
 
         if self.use_adamax:
+            print("うおおおおおおおおおおおおおお")
             # Adamax
             self._t += 1
             self._moment = self._moment * self._beta1 + grad_lambda * (1-self._beta1)
