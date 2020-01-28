@@ -34,6 +34,7 @@ def arg_setting():
     parser.add_argument("-a", "--sparse_adamax", action="store_true", help="updating sparse parameter by adamax.")
     parser.add_argument("-p", "--filename_prefix", action="store", type=str, default="_", help="filename prefix")
     parser.add_argument("-g", "--generative_model", action="store_true", help="generate generative model.")
+    parser.add_argument("-n", "--initial_model", action="store", type=str, default=None, help="initial model.")
     args = parser.parse_args()
 
 class LearningData:
@@ -100,7 +101,12 @@ class LearningDataSettings:
             self.input_unit = json_setting["input-unit"]
             self.hidden_unit = json_setting["hidden-unit"]
             self.class_unit = json_setting["class-unit"]
-            self.initial_model = json_setting["initial-model"]
+            if args.initial_model:
+                self.initial_model = args.initial_model
+            else:
+                self.initial_model = json_setting["initial-model"]
+            logging.info("initial model: {}".format(self.initial_model))
+            
             if not args.generative_model:
                 self.training_data = MNIST(json_setting["training-data"], self.class_unit)
                 self.test_data = MNIST(json_setting["test-data"], self.class_unit)
