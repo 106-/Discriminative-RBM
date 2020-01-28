@@ -294,6 +294,15 @@ class DRBM:
         probs = self.probability(a_matrix)
         return random_value, probs
 
+    def stick_break(self, sampling_num):
+        value, probs = self.sampling(sampling_num)
+        probs = np.cumsum(probs, axis=1)
+        uniform_dist = np.random.rand(sampling_num,1)
+        np.subtract(probs, uniform_dist, out=probs)
+        np.less(0, probs, out=probs)
+        target = np.argmax(probs, axis=1)
+        return value, target
+
     def save(self, filename, training_progress=None):
         params = {
             "num_class":self.num_class,

@@ -33,6 +33,7 @@ def arg_setting():
     parser.add_argument("-r", "--sparse_learning_rate", action="store", type=float, default=1.0, help="learning rate for sparse parameter")
     parser.add_argument("-a", "--sparse_adamax", action="store_true", help="updating sparse parameter by adamax.")
     parser.add_argument("-p", "--filename_prefix", action="store", type=str, default="_", help="filename prefix")
+    parser.add_argument("-g", "--generative_model", action="store_true", help="generate generative model.")
     args = parser.parse_args()
 
 class LearningData:
@@ -75,6 +76,11 @@ class LearningData:
     def normalize_255(self):
         self.data /= 255
 
+class Categorical(LearningData):
+    def __init__(self, value, target, num_class):
+        target = np.eye(num_class)[target.astype("int64").flatten().tolist()]
+        super(Categorical, self).__init__(value, target)
+
 class MNIST(LearningData):
     def __init__(self, filename, num_class):
         array = np.load(filename)
@@ -94,14 +100,15 @@ class LearningDataSettings:
             self.input_unit = json_setting["input-unit"]
             self.hidden_unit = json_setting["hidden-unit"]
             self.class_unit = json_setting["class-unit"]
-            self.training_data = MNIST(json_setting["training-data"], self.class_unit)
-            self.test_data = MNIST(json_setting["test-data"], self.class_unit)
             self.initial_model = json_setting["initial-model"]
-            if json_setting["needs-normalize"]:
-                # mu, sigma = self.training_data.normalize()
-                # self.test_data.normalize(mu=mu, sigma=sigma)
-                self.training_data.normalize_255()
-                self.test_data.normalize_255()
+            if not args.generative_model:
+                self.training_data = MNIST(json_setting["training-data"], self.class_unit)
+                self.test_data = MNIST(json_setting["test-data"], self.class_unit)
+                if json_setting["needs-normalize"]:
+                    # mu, sigma = self.training_data.normalize()
+                    # self.test_data.normalize(mu=mu, sigma=sigma)
+                    self.training_data.normalize_255()
+                    self.test_data.normalize_255()
 
 def main():
     logging.info("️start loading setting data.")
@@ -118,13 +125,19 @@ def main():
     drbm = DRBM.load_from_json(settings.initial_model, args.division_num, args.sparse, sparse_learning_rate=args.sparse_learning_rate, sparse_adamax=args.sparse_adamax)
     logging.info("initial model: {}".format(str(drbm)))
 
-    if args.datasize_limit != 0:
+    if args.datasize_limit != 0 and not args.generative_model:
         settings.training_data = settings.training_data.restore_minibatch(args.datasize_limit, random=False)
 
     gen_drbm = None
     if args.kl_divergence:
         gen_drbm = DRBM.load_from_json(args.kl_divergence)
         logging.info("generative model: {}".format(str(gen_drbm)))
+    elif args.generative_model:
+        gen_drbm = DRBM(vector_size, hidden_unit_num, class_num, 0, random_bias=True)
+        logging.info("generated generative model: {}".format(str(gen_drbm)))
+        value, target = gen_drbm.stick_break(args.datasize_limit)
+        settings.training_data = Categorical(value, target, class_num)
+        settings.test_data = Categorical(np.array([]), np.array([]), class_num)
 
     opt = None
     if args.optimizer == "momentum":
