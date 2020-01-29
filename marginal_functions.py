@@ -1,6 +1,7 @@
 
 import numpy as np
 import numexpr as ne
+import logging
 
 # act は左右対称(あるいはsoftplus)のやつ
 # diff はtanhみたいなやつ
@@ -75,7 +76,9 @@ class sparse_continuous:
             self._moment = np.zeros(self.lambda_vector.shape)
             self._norm = np.zeros(self.lambda_vector.shape)
             self._diff = np.zeros(self.lambda_vector.shape)
+            logging.info("sparse param updating method: Adamax")
         else:
+            logging.info("sparse param updating method: SGD({})".format(learning_rate))
             self._learning_rate = learning_rate
     
     def act(self, x):
