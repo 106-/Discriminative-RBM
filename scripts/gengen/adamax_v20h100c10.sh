@@ -5,7 +5,7 @@ if [ $# -ne 2 ]; then
   exit 1
 fi
 
-DIR="./results/sgd_vs_adamax/generated_generative_model/"`date +%Y-%m-%d_%H-%M-%S`"_adamax_v20h100c10"
+DIR="./results/sgd_vs_adamax/generated_generative_model_h50/"`date +%Y-%m-%d_%H-%M-%S`"_adamax_v20h100c10"
 mkdir -p $DIR
 
 data_num=500
