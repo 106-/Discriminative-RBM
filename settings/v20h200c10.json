@@ -1,0 +1,9 @@
+{
+    "training-data":"./datas/v20h50c10_inf_train.npy",
+    "test-data":"./datas/v20h50c10_inf_test.npy",
+    "needs-normalize":false,
+    "input-unit": 20,
+    "hidden-unit": 200,
+    "class-unit": 10,
+    "initial-model": "./params/v20h200c10.json"
+}

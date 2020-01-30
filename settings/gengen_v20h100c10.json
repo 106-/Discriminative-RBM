@@ -1,0 +1,12 @@
+{
+    "needs-normalize":false,
+    "input-unit": 20,
+    "hidden-unit": 100,
+    "class-unit": 10,
+    "initial-model": "./params/v20h100c10.json",
+    "generative-model":{
+        "input-unit": 20,
+        "hidden-unit": 50,
+        "class-unit": 10
+    }
+}

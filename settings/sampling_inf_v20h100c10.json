@@ -1,0 +1,14 @@
+{
+    "training-data":"./datas/v20h50c10_inf_train.npy",
+    "test-data":"./datas/v20h50c10_inf_test.npy",
+    "needs-normalize":false,
+    "input-unit": 20,
+    "hidden-unit": 100,
+    "class-unit": 10,
+    "initial-parameters":{
+        "weight_w":"./params/v20h100c10_w.npy",
+        "weight_v":"./params/v20h100c10_v.npy",
+        "bias_c":"./params/v20h100c10_c.npy",
+        "bias_b":"./params/v20h100c10_b.npy"
+    }
+}
