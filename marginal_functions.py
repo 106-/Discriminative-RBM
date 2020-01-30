@@ -123,13 +123,15 @@ class sparse_continuous:
         return ne.evaluate("1 / (2*spa) * (sa+sb)")
 
     def _s(self, x):
-        return np.piecewise(x, [x==0], [
+        return np.piecewise(x, [x==0, np.abs(x)<1e-4], [
             1,
+            lambda x: ne.evaluate("1 - x + 2*x**2/3 - x**3/3 + 2*x**4/15")
             lambda x: ne.evaluate("exp(-x) * sinh(x) / x")
         ])
     
     def _s_grad(self, x):
-        return np.piecewise(x, [x==0], [
+        return np.piecewise(x, [x==0, np.abs(x)<1e-4], [
             -1,
+            lambda x: ne.evaluate("-1 + 4*x/3 - x**2 + 8*x**3/15 - 2*x**4/9")
             lambda x: ne.evaluate("exp(-x) * sinh(x) / x * (1/tanh(x)-1/x-1)")
         ])
