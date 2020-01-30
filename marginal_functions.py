@@ -81,27 +81,8 @@ class sparse_continuous:
             logging.info("sparse param updating method: SGD({})".format(learning_rate))
             self._learning_rate = learning_rate
     
-    def act(self, x):
-        a, b = self._get_separation_calc(x)
-        return self._J(b, -a)
-    
-    def diff(self, x, **kwargs):
-        a, b = self._get_separation_calc(x)
-        return self._U(b, -a)
-    
     def fit_lambda(self, a_data, a_ok, probs_matrix):
-        a, b = self._get_separation_calc(a_data)
-        mar_a_data = self._U(b, -a, alpha=-0.5)
-        a, b = self._get_separation_calc(a_ok)
-        mar_a_ok = self._U(b, -a, alpha=-0.5)
-        # diff_softplus -> (m)
-        diff_softplus = -1 / (1 + np.exp(-self.lambda_vector) )
-
-        sum_k = np.sum( mar_a_ok * probs_matrix[:, :, np.newaxis], axis=1)
-        # diff_mar_a -> (N,m)
-        diff_mar_a = mar_a_data - sum_k
-        # (m) * (N,m) なのでbroadcastが有効
-        grad_lambda = diff_softplus * np.sum( diff_mar_a, axis=0) / len(a_data)
+        grad_lambda = np.mean( self.ldiff(a_data) - np.sum( self.ldiff(a_ok) * probs_matrix[:, :, np.newaxis], axis=1 ), axis=0 )
 
         if self.use_adamax:
             # Adamax
@@ -113,44 +94,42 @@ class sparse_continuous:
         else:
             np.sum((self.lambda_vector, grad_lambda * self._learning_rate), axis=0, out=self.lambda_vector)
 
-    def _get_separation_calc(self, x):
-        sp_lambda = softplus(self.lambda_vector)
-        a = ne.evaluate("(x - sp_lambda)/2")
-        b = ne.evaluate("(x + sp_lambda)/2")
-        return (a, b)
+    def _separation(self, x):
+        b = softplus(self.lambda_vector)
+        return ne.evaluate("(b+x)/2"), ne.evaluate("(b-x)/2")
 
-    def _Q(self, b, a):
-        return self._K(b) / self._K(a)
+    def act(self, x):
+        a = self.a(x)
+        return ne.evaluate("log(a)")
 
-    def _J(self, a, b):
-        higher_than_zero_a = 0<=a
-        return np.piecewise(a, [ higher_than_zero_a ], [ 
-            lambda a: np.log(self._K(a)) + np.log1p(self._Q(b[higher_than_zero_a], a)),
-            lambda a: np.log(self._K(-a)) -2*a + np.log1p(self._Q(b[np.logical_not(higher_than_zero_a)], a))
+    def a(self, x):
+        return self._sp_a(*self._separation(x))
+    
+    def _sp_a(self, a, b):
+        return self._s(a) + self._s(b)
+
+    def diff(self, x):
+        a, b = self._separation(x)
+        spa = self._sp_a(a, b)
+        sa = self._s_grad(a)
+        sb = self._s_grad(b)
+        return ne.evaluate("1 / (2*spa) * (sa-sb)")
+    
+    def ldiff(self, x):
+        a, b = self._separation(x)
+        spa = self._sp_a(a, b)
+        sa = self._s_grad(a)
+        sb = self._s_grad(b)
+        return ne.evaluate("1 / (2*spa) * (sa+sb)")
+
+    def _s(self, x):
+        return np.piecewise(x, [x==0], [
+            1,
+            lambda x: ne.evaluate("exp(-x) * sinh(x) / x")
         ])
-
-    def _K(self, x):
-        return np.piecewise(x, [ x<-1e-3, 1e-3<x ], [
-            lambda x: ne.evaluate("exp(-x)*sinh(abs(x))/abs(x)"),
-            lambda x: ne.evaluate("1/(2*x)*(1-exp(-2*x))"),
-            lambda x: ne.evaluate("1 - x + 2.0/3.0*x**2 - 1.0/3.0*x**3")
+    
+    def _s_grad(self, x):
+        return np.piecewise(x, [x==0], [
+            -1,
+            lambda x: ne.evaluate("exp(-x) * sinh(x) / x * (1/tanh(x)-1/x-1)")
         ])
-
-    def _U(self, a,b, alpha=0.5, beta=-0.5):
-        return ( alpha * self._r(a) + beta * self._r(b) * self._Q(b,a) ) / (1+self._Q(b,a))
-
-    def _r(self, x):
-        return np.piecewise(x, [ np.abs(x) < 1e-3 ], [
-            lambda x: ne.evaluate("-1 + x/3 - x**3/45"),
-            lambda x: ne.evaluate("1/tanh(x) - 1/x -1")
-        ])
-
-if __name__ == '__main__':
-    N = 100
-    m = 10
-    K = 10
-    probs = np.random.rand(N, K)
-    a_data = np.random.rand(N, m)
-    a_ok = np.random.rand(N, K, m)
-    s = sparse_continuous(10)
-    s.fit_lambda(a_data, a_ok, probs)
