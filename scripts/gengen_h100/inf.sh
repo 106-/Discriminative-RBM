@@ -5,7 +5,7 @@ if [ $# -ne 2 ]; then
   exit 1
 fi
 
-DIR="./results/sgd_vs_adamax/generated_generative_model_h50/"`date +%Y-%m-%d_%H-%M-%S`"_0.01_v20h100c10"
+DIR="./results/sgd_vs_adamax/generated_generative_model_h100/"`date +%Y-%m-%d_%H-%M-%S`"_inf_v20h100c10"
 mkdir -p $DIR
 
 data_num=500
@@ -17,5 +17,5 @@ test_interval=$(($data_num/$batch_size))
 
 for file in `find ./params/v20h100c10_initial/ -type f | sort | sed -n $1,$2p`
 do
-    ./drbm_main.py $learning_time 0 ./settings/gengen_v20h100c10.json -s -l $data_num -i $test_interval -m $batch_size -d $DIR -g -r 0.01 -p "0.01" -n $file
+    ./drbm_main.py $learning_time 0 ./settings/gengen_v20h100c10.json -l $data_num -i $test_interval -m $batch_size -d $DIR -g -p "inf" -n $file
 done
