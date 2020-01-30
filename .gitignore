@@ -1,0 +1,9 @@
+results/
+graph_settings/
+datas/
+jupyter/
+.vscode/
+.ipynb_checkpoints/
+*.pyc
+.python-version
+matome/
