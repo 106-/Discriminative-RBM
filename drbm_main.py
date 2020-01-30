@@ -107,7 +107,11 @@ class LearningDataSettings:
                 self.initial_model = json_setting["initial-model"]
             logging.info("initial model: {}".format(self.initial_model))
             
-            if not args.generative_model:
+            if args.generative_model:
+                self.gen_input = json_setting["generative-model"]["input-unit"]
+                self.gen_hidden = json_setting["generative-model"]["hidden-unit"]
+                self.gen_class = json_setting["generative-model"]["class-unit"]
+            else:
                 self.training_data = MNIST(json_setting["training-data"], self.class_unit)
                 self.test_data = MNIST(json_setting["test-data"], self.class_unit)
                 if json_setting["needs-normalize"]:
@@ -139,7 +143,7 @@ def main():
         gen_drbm = DRBM.load_from_json(args.kl_divergence)
         logging.info("generative model: {}".format(str(gen_drbm)))
     elif args.generative_model:
-        gen_drbm = DRBM(vector_size, hidden_unit_num, class_num, 0, random_bias=True)
+        gen_drbm = DRBM(settings.gen_input, settings.gen_hidden, settings.gen_class, 0, random_bias=True)
         logging.info("generated generative model: {}".format(str(gen_drbm)))
         value, target = gen_drbm.stick_break(args.datasize_limit)
         settings.training_data = Categorical(value, target, class_num)
