@@ -1,0 +1,9 @@
+{
+    "training-data":"./datas/mnist_train.npy",
+    "test-data":"./datas/mnist_noise_test_d120.0.npy",
+    "needs-normalize":true,
+    "input-unit": 784,
+    "hidden-unit": 100,
+    "class-unit": 10,
+    "initial-model": "./params/v784h200c10.json"
+}
