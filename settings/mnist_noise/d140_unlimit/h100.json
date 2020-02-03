@@ -1,0 +1,8 @@
+{
+    "training-data":"./datas/mnist_train.npy",
+    "test-data":"./datas/mnist_noise_test_unlimit_d140.0.npy",
+    "needs-normalize":true,
+    "input-unit": 784,
+    "hidden-unit": 100,
+    "class-unit": 10
+}
