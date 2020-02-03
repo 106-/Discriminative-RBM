@@ -17,5 +17,5 @@ test_interval=$(($data_num/$batch_size))
 
 for file in `find ./params/v20h200c10_initial/ -type f | sort | sed -n $1,$2p`
 do
-    ./drbm_main.py $learning_time 0 ./settings/gengen_v20h200c10.json -s -l $data_num -i $test_interval -m $batch_size -d $DIR -g -r 0.1 -p "0.1" -n $file
+    ./drbm_main.py $learning_time 0 ./settings/gengen/h200.json -s -l $data_num -i $test_interval -m $batch_size -d $DIR -g -r 0.1 -p "0.1" -n $file
 done

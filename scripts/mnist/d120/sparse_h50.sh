@@ -5,7 +5,7 @@ if [ $# -ne 2 ]; then
   exit 1
 fi
 
-DIR="./results/mnist/"`date +%Y-%m-%d_%H-%M-%S`"_inf_MNIST"
+DIR="./results/mnist/"`date +%Y-%m-%d_%H-%M-%S`"_sparse_h50_MNIST_d120"
 mkdir -p $DIR
 
 data_num=1000
@@ -17,5 +17,5 @@ test_interval=$(($data_num/$batch_size))
 
 for file in `find ./params/v784h50c10_initial/ -type f | sort | sed -n $1,$2p`
 do
-    ./drbm_main.py $learning_time 0 ./settings/MNIST_noise_h50.json -s -l $data_num -i $test_interval -m $batch_size -c -d $DIR -a -p "MNIST_sparse_h50" -n $file
+    ./drbm_main.py $learning_time 0 ./settings/mnist_noise/d120/h50.json -s -l $data_num -i $test_interval -m $batch_size -c -d $DIR -a -p "MNIST_sparse_h50" -n $file
 done

@@ -17,5 +17,5 @@ test_interval=$(($data_num/$batch_size))
 
 for i in `seq $1`
 do
-    ./drbm_main.py $learning_time 0 ./settings/MNIST.json -l $data_num -i $test_interval -m $batch_size -c -d $DIR
+    ./drbm_main.py $learning_time 0 ./settings/mnist/mnist.json -l $data_num -i $test_interval -m $batch_size -c -d $DIR
 done

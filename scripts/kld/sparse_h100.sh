@@ -5,7 +5,7 @@ if [ $# -ne 2 ]; then
   exit 1
 fi
 
-DIR="./results/kld/"`date +%Y-%m-%d_%H-%M-%S`"_sparse_v20h100c10"
+DIR="./results/kld/"`date +%Y-%m-%d_%H-%M-%S`"_sparse_h100"
 mkdir -p $DIR
 
 data_num=500
@@ -17,5 +17,5 @@ test_interval=$(($data_num/$batch_size))
 
 for file in `find ./params/v20h100c10_initial/ -type f | sort | sed -n $1,$2p`
 do
-    ./drbm_main.py $learning_time 0 ./settings/gengen_v20h100c10.json -s -l $data_num -i $test_interval -m $batch_size -d $DIR -g -a -p "s0_h100" -n $file
+    ./drbm_main.py $learning_time 0 ./settings/gengen/h100.json -s -l $data_num -i $test_interval -m $batch_size -d $DIR -g -a -p "s0_h100" -n $file
 done
