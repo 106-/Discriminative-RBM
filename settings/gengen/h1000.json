@@ -1,0 +1,11 @@
+{
+    "needs-normalize":false,
+    "input-unit": 20,
+    "hidden-unit": 1000,
+    "class-unit": 10,
+    "generative-model":{
+        "input-unit": 20,
+        "hidden-unit": 50,
+        "class-unit": 10
+    }
+}
